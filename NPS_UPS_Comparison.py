@@ -113,49 +113,44 @@ def calculate_nps_corpus(
 ):
     """
     Calculate the NPS corpus based on contributions from the employee and the government, and market returns.
-    If death occurs before retirement, the spouse receives the accumulated corpus as a lump sum.
-    Adjusts the investment plan to a 50-50 split between bonds and equity.
-    Accounts for 40% of the total corpus being used for pension payouts starting at the age of retirement.
+    Apply VRS only if total years of service are 25 years; otherwise, calculate a percentage of the corpus.
     """
     corpus = 0
-    government_contribution_rate_pre_2019 = 0.12  # 12% before 2019
-    government_contribution_rate_post_2019 = 0.14  # 14% from 2019 onward
+    government_contribution_rate_pre_2019 = 0.12
+    government_contribution_rate_post_2019 = 0.14
 
     for year in salary_progression:
         if year["age"] >= vrs_age or (death_age and year["age"] >= death_age):
             break
-        # Determine government contribution rate based on the year
-        if year["age"] < 2019 - (2023 - year["age"]):  # Before 2019
-            government_contribution_rate = government_contribution_rate_pre_2019
-        else:  # 2019 and after
-            government_contribution_rate = government_contribution_rate_post_2019
-
-        # Use the calculate_nps_contribution function
+        government_contribution_rate = (
+            government_contribution_rate_post_2019 if year["age"] >= 2019 else government_contribution_rate_pre_2019
+        )
         yearly_contribution = calculate_nps_contribution(
             year["basic_pay"], employee_contribution_rate, government_contribution_rate
         )
         corpus = (corpus + yearly_contribution) * (1 + market_return_rate)
 
-    # If death occurs before retirement, spouse receives the accumulated corpus
+    total_service_years = salary_progression[-1]["age"] - salary_progression[0]["age"]
+    if total_service_years < 25:
+        # Apply proportionate factor for less than 25 years of service
+        proportionate_factor = total_service_years / 25
+        corpus *= proportionate_factor
+
     if spouse_benefit and death_age and salary_progression[-1]["age"] < death_age:
         return corpus  # Spouse receives the full accumulated corpus as a lump sum
 
-    # Adjust corpus for a 50-50 split between bonds and equity
     bond_corpus = corpus * 0.5 * (1 + bond_rate)
     equity_corpus = corpus * 0.5 * (1 + equity_rate)
     total_corpus = bond_corpus + equity_corpus
 
-    # Calculate pension payout (40% of the total corpus)
     pension_corpus = total_corpus * pension_payout_rate
     lump_sum_corpus = total_corpus * (1 - pension_payout_rate)
 
-    # Adjust pension payouts for inflation
     pension_payout = 0
     for age in range(vrs_age, death_age + 1):
         yearly_pension = pension_corpus * market_return_rate
         pension_payout += yearly_pension / ((1 + inflation_rate) ** (age - vrs_age))
 
-    # Return the total corpus including lump sum and inflation-adjusted pension payouts
     return lump_sum_corpus + pension_payout
 
 
@@ -250,89 +245,6 @@ def update_pay_scales_for_pay_commission(fitment_factor):
             scale["basic_pay"] * (1.03 ** scale["total_years"])
         )
         scale["basic_pay"] = updated_basic_pay
-
-
-def calculate_nps_contribution(basic_pay, employee_contribution_rate, government_contribution_rate):
-    """
-    Calculate the total NPS contribution for a given year.
-    Includes contributions from both the employee and the government.
-    """
-    return basic_pay * (employee_contribution_rate + government_contribution_rate)
-
-
-# -------------------------------
-# Corpus Calculation Functions
-# -------------------------------
-def calculate_nps_corpus(
-    salary_progression, employee_contribution_rate, market_return_rate, vrs_age, death_age,
-    spouse_benefit=True, inflation_rate=0.05, bond_rate=0.07, equity_rate=0.12, pension_payout_rate=0.4
-):
-    """
-    Calculate the NPS corpus based on contributions from the employee and the government, and market returns.
-    """
-    corpus = 0
-    government_contribution_rate_pre_2019 = 0.12
-    government_contribution_rate_post_2019 = 0.14
-
-    for year in salary_progression:
-        if year["age"] >= vrs_age or (death_age and year["age"] >= death_age):
-            break
-        government_contribution_rate = (
-            government_contribution_rate_post_2019 if year["age"] >= 2019 else government_contribution_rate_pre_2019
-        )
-        yearly_contribution = calculate_nps_contribution(
-            year["basic_pay"], employee_contribution_rate, government_contribution_rate
-        )
-        corpus = (corpus + yearly_contribution) * (1 + market_return_rate)
-
-    if spouse_benefit and death_age and salary_progression[-1]["age"] < death_age:
-        return corpus  # Spouse receives the full accumulated corpus as a lump sum
-
-    bond_corpus = corpus * 0.5 * (1 + bond_rate)
-    equity_corpus = corpus * 0.5 * (1 + equity_rate)
-    total_corpus = bond_corpus + equity_corpus
-
-    pension_corpus = total_corpus * pension_payout_rate
-    lump_sum_corpus = total_corpus * (1 - pension_payout_rate)
-
-    pension_payout = 0
-    for age in range(vrs_age, death_age + 1):
-        yearly_pension = pension_corpus * market_return_rate
-        pension_payout += yearly_pension / ((1 + inflation_rate) ** (age - vrs_age))
-
-    return lump_sum_corpus + pension_payout
-
-
-def calculate_ups_corpus(salary_progression, inflation_rate, death_age, fitment_factor, spouse_benefit=True, pay_commission_interval=10, dearness_relief_rate=0.05):
-    """
-    Calculate the inflation-adjusted UPS corpus.
-    """
-    if not salary_progression or salary_progression[-1]["age"] >= death_age:
-        return 0
-
-    pension_percentage = 0.5
-    last_drawn_salary = salary_progression[-1]["basic_pay"]*12  # Monthly salary to annual salary
-    corpus = 0
-
-    total_service_years = salary_progression[-1]["age"] - salary_progression[0]["age"]
-    eligible_service_years = min(total_service_years, 25)
-    proportionate_factor = eligible_service_years / 25
-
-    for age in range(salary_progression[-1]["age"] + 1, death_age + 1):
-        if (age - salary_progression[-1]["age"]) % pay_commission_interval == 0:
-            last_drawn_salary *= fitment_factor
-        pension = last_drawn_salary * pension_percentage * proportionate_factor * (1 + dearness_relief_rate)
-        corpus += pension / ((1 + inflation_rate) ** (age - salary_progression[-1]["age"]))
-
-    if spouse_benefit and salary_progression[-1]["age"] < death_age:
-        spouse_pension_percentage = 0.5 * pension_percentage
-        for age in range(death_age, death_age + 20):
-            if (age - salary_progression[-1]["age"]) % pay_commission_interval == 0:
-                last_drawn_salary *= fitment_factor
-            pension = last_drawn_salary * spouse_pension_percentage * proportionate_factor * (1 + dearness_relief_rate)
-            corpus += pension / ((1 + inflation_rate) ** (age - salary_progression[-1]["age"]))
-
-    return corpus
 
 
 # -------------------------------
