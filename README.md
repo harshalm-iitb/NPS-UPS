@@ -3,6 +3,22 @@
 ## Overview
 This Python script calculates and compares the corpus of an IAS officer under the **Unfunded Pension Scheme (UPS)** and the **National Pension Scheme (NPS)**. It considers various factors such as career progression, pay commission rises, fitment factors, inflation, voluntary retirement (VRS), extraordinary leave (EOL) with no pay, **Dearness Relief (DR)**, and scenarios where the officer's **age of death occurs before retirement**.
 
+## Pay Scales
+
+The following table shows the pay scales used in the calculations:
+
+| Level | Description                     | Basic Pay (₹) | Total Years |
+|-------|---------------------------------|---------------|-------------|
+| 10    | Junior Time Scale               | 56,100        | 4           |
+| 11    | Senior Time Scale               | 67,700        | 5           |
+| 12    | Junior Administrative Grade     | 78,800        | 4           |
+| 13    | Selection Grade                 | 1,23,100      | 1           |
+| 14    | Super Time Scale                | 1,44,200      | 4           |
+| 15    | Senior Administrative Grade     | 1,82,200      | 7           |
+| 16    | HAG Scale                       | 2,05,400      | 5           |
+| 17    | Apex Scale                      | 2,25,000      | 6           |
+| 18    | Cabinet Secretary               | 2,50,000      | 2           |
+
 ## Features
 - **Salary Progression**:
   - Calculates yearly salary progression based on IAS pay scales.
@@ -64,33 +80,75 @@ The script will calculate and display:
 
 ### Example Run
 ```plaintext
-IAS Officer Corpus Comparison (UPS vs NPS)
-Enter joining age of the officer (default: 26): 
+Corpus Comparison (UPS vs NPS)
+Enter birth year of the officer (default: 1996): 
+Enter year of joining the service (default: 2022): 
 Enter retirement age (default: 60): 
-Enter death age (default: 75): 
-Enter fitment factor (default: 1.6): 
-Enter annual increment rate (default: 0.03 for 3%): 
+Enter death age (default: 75):
+Do you want to calculate the fitment factor using Ackroyd's formula? (yes/no, default: yes):
+Enter the inflation rate (default: 0.05 for 5%): 
+Enter the cost of living adjustment (default: 0.2 for 20%): 
 Enter inflation rate (default: 0.05 for 5%): 
-Employee contribution rate: 10.0%
-Government contribution rate: 12% before 2019, 14% from 2019 onward.
-Suggested market return rate: 8% (0.08) based on conservative estimates for the next 40 years.
-Enter market return rate (default: 0.08 for 8%): 
-Enter VRS age (or press Enter to skip, default: retirement age): 
-Enter the year of Extraordinary Leave (EOL) with no pay (default: 1, or press Enter if not applicable): 
+Enter market return rate (default: 0.08 for 8%):
 Enter pay commission interval in years (default: 10): 
-Enter pay commission increase as a decimal (default: 0.2 for 20%): 
-Enter superannuation age (default: 60): 
+Enter the number of years of Extraordinary Leave (EOL) with no pay (default: 1): 
 
 --- Salary Progression ---
-Age: 26, Basic Pay: ₹56,100.00
-Age: 27, Basic Pay: ₹57,783.00
-...
-Age: 59, Basic Pay: ₹1,23,456.78
+Year: 2022, Age: 26, Monthly Salary: ₹85,833.00
+Year: 2023, Age: 27, Monthly Salary: ₹88,407.99
+Year: 2024, Age: 28, Monthly Salary: ₹91,060.23
+Year: 2025, Age: 29, Monthly Salary: ₹93,792.04
+Year: 2026, Age: 30, Monthly Salary: ₹189,438.73
+Year: 2027, Age: 31, Monthly Salary: ₹195,121.90
+Year: 2028, Age: 32, Monthly Salary: ₹200,975.55
+Year: 2029, Age: 33, Monthly Salary: ₹207,004.82
+Year: 2030, Age: 34, Monthly Salary: ₹213,214.96
+Year: 2031, Age: 35, Monthly Salary: ₹220,498.85
+Year: 2032, Age: 36, Monthly Salary: ₹227,113.82
+Year: 2033, Age: 37, Monthly Salary: ₹233,927.23
+Year: 2034, Age: 38, Monthly Salary: ₹240,945.05
+Year: 2035, Age: 39, Monthly Salary: ₹344,459.50
+Year: 2036, Age: 40, Monthly Salary: ₹737,962.10
+Year: 2037, Age: 41, Monthly Salary: ₹760,100.96
+Year: 2038, Age: 42, Monthly Salary: ₹782,903.99
+Year: 2039, Age: 43, Monthly Salary: ₹806,391.11
+Year: 2040, Age: 44, Monthly Salary: ₹932,432.00
+Year: 2041, Age: 45, Monthly Salary: ₹960,404.96
+Year: 2042, Age: 46, Monthly Salary: ₹989,217.11
+Year: 2043, Age: 47, Monthly Salary: ₹1,018,893.63
+Year: 2044, Age: 48, Monthly Salary: ₹1,049,460.44
+Year: 2045, Age: 49, Monthly Salary: ₹1,080,944.25
+Year: 2046, Age: 50, Monthly Salary: ₹2,036,241.12
+Year: 2047, Age: 51, Monthly Salary: ₹1,922,462.70
+Year: 2048, Age: 52, Monthly Salary: ₹1,980,136.58
+Year: 2049, Age: 53, Monthly Salary: ₹2,039,540.68
+Year: 2050, Age: 54, Monthly Salary: ₹2,100,726.90
+Year: 2051, Age: 55, Monthly Salary: ₹2,163,748.70
+Year: 2052, Age: 56, Monthly Salary: ₹2,105,910.94
+Year: 2053, Age: 57, Monthly Salary: ₹2,169,088.27
+Year: 2054, Age: 58, Monthly Salary: ₹2,234,160.92
+Year: 2055, Age: 59, Monthly Salary: ₹2,301,185.74
 
---- Results ---
-UPS Corpus (Including Spouse Benefits): ₹12,345,678.90
-NPS Corpus (Including Spouse Lump Sum): ₹5,678,901.23
+Final UPS Corpus (Including Dearness Relief): ₹353,325,195.97
+
+Final NPS Corpus (Including Returns): ₹238,907,641.76
 ```
+
+### Explanation of Inputs:
+1. **Birth Year**: The year the officer was born (default: 1996).
+2. **Year of Joining**: The year the officer joined the service (default: 2022).
+3. **Retirement Age**: The age at which the officer retires (default: 60).
+4. **Death Age**: The age at which the officer is expected to pass away (default: 75).
+5. **Fitment Factor**: Calculated using Ackroyd's formula based on inflation and cost of living adjustment.
+6. **Inflation Rate**: The expected inflation rate (default: 5% or 0.05).
+7. **Market Return Rate**: The expected annual return rate for NPS investments (default: 8% or 0.08).
+8. **Pay Commission Interval**: The interval (in years) at which pay commissions are applied (default: 10 years).
+9. **Extraordinary Leave (EOL)**: The number of years the officer takes leave without pay (default: 1).
+
+### Explanation of Outputs:
+1. **Salary Progression**: Displays the officer's yearly salary progression, including basic pay and Dearness Allowance (DA).
+2. **UPS Corpus**: The total corpus under the Unfunded Pension Scheme, adjusted for inflation and including Dearness Relief (DR).
+3. **NPS Corpus**: The total corpus under the National Pension Scheme, including contributions from both the employee and the government, adjusted for market returns and inflation.
 
 ## Notes
 - The script assumes the **7th Pay Commission** pay scales for IAS officers.
