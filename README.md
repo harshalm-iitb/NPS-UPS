@@ -1,4 +1,4 @@
-# NPS vs UPS Corpus Comparison for IAS Officers
+# NPS vs UPS Corpus Comparison for AIS Officers
 
 ## Overview
 This program compares the benefits of the National Pension System (NPS) and the Unfunded Pension Scheme (UPS) for IAS officers. It calculates monthly salary progression, NPS corpus, and UPS corpus, and provides a detailed comparison across different death ages.
