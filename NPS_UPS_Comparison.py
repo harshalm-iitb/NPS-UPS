@@ -3,6 +3,8 @@ import numpy_financial as npf
 import locale
 from datetime import datetime, date
 
+import csv  # Import csv for generating CSV files
+
 try:
     from tabulate import tabulate  # Import tabulate for better table formatting
 except ImportError:
@@ -27,7 +29,14 @@ PAY_SCALES = [
 # Define global variables to track salary progression and UPS values
 overall_table = []  # Tracks salary and NPS corpus progression
 ups_values_table = []  # Tracks UPS values to avoid recalculation
-
+inflation_rate = 0.05  # Default inflation rate (5%)
+birth_year = 1996 # Year of birth
+birth_month = 6 # Month of birth
+normal_retirement_age = 60  # Normal retirement age
+pension_fund_nav_rate = 0.08 # NAV rate for pension fund (8%)
+withdrawal_percentage = 0
+pay_commission_interval = 10 # Pay commission interval in years
+retirement_age = 60  # Default retirement age
 # Month constants for readability
 JANUARY = 1
 APRIL = 4
@@ -89,7 +98,7 @@ def get_pay_scale_for_service_months(service_months):
     last_scale_months = last_scale["years_in_scale"] * 12
     return last_scale, service_months - (cumulative_months - last_scale_months)
 
-def calculate_fitment_factor(inflation_rate, cost_of_living_adjustment=0.2):
+def calculate_fitment_factor(cost_of_living_adjustment=0.2):
     """
     Calculate the fitment factor using Ackroyd's formula and cost of living adjustments (COLA).
     """
@@ -98,7 +107,7 @@ def calculate_fitment_factor(inflation_rate, cost_of_living_adjustment=0.2):
     fitment_factor = inflation_adjustment + cost_of_living_adjustment
     return fitment_factor
 
-def calculate_nps_corpus(
+def initialize_nps_corpus(
     equity_return=0.12, 
     corporate_bond_return=0.08, 
     gsec_return=0.06,
@@ -158,53 +167,85 @@ def calculate_nps_corpus(
         
         # Update the entry with the current NPS corpus
         overall_table[i]["nps_corpus"] = corpus
-    
-    return corpus
+    return
 
-def calculate_nps_pension_with_rop(nps_corpus, withdrawal_percentage, annuity_rate=0.06):
+def calculate_nps_pension_with_rop(death_year, retirement_date, annuity_rate):
     """
     Calculate the NPS pension based on the final corpus and annuity plan with Return of Purchase Price.
-    
-    Parameters:
-    - nps_corpus: The final NPS corpus at retirement
-    - withdrawal_percentage: Percentage of corpus withdrawn (default: 0%)
-    - annuity_rate: Annual annuity rate for Return of Purchase Price plan (default: 6%)
-    
-    Returns:
-    - monthly_pension: Monthly pension amount
-    - lump_sum: Lump sum amount available at retirement (60% of corpus)
-    - rop_value: The purchase price that will be returned to nominees upon death
     """
-    annuity_corpus = nps_corpus * (1-withdrawal_percentage)
-    # Calculate the lump sum amount by applying the withdrawal percentage to the total NPS corpus
-    lump_sum = nps_corpus * withdrawal_percentage
-    
-    # Annual pension amount (6% of annuity corpus)
-    annual_pension = annuity_corpus * annuity_rate
-    monthly_pension = annual_pension / 12
-    
-    # RoP value is the same as the annuity corpus
-    rop_value = annuity_corpus
-    return monthly_pension, lump_sum, rop_value
+    global withdrawal_percentage, overall_table, normal_retirement_age, inflation_rate, pension_fund_nav_rate, retirement_age
+    nps_corpus = 0
+    if not overall_table:
+        # Return default values if overall_table is empty
+        return 0, 0, 0, 0
 
-def initialize_ups_values(
-    retirement_date,
-    inflation_rate, 
-    fitment_factor, 
-    pay_commission_interval,
-    retirement_age,
-    lumpsum_withdrawal_percentage,
-    is_vrs=False,
-    normal_retirement_age=60,
-    switch_date=date(2025, 4, 1),
-    pension_fund_nav_rate=0.08
-):
+    is_vrs = retirement_age < normal_retirement_age
+
+    if isinstance(retirement_date, int):
+        retirement_year = retirement_date
+        retirement_month = 1
+        retirement_date = date(retirement_year, retirement_month, 1)
+    else:
+        retirement_year = retirement_date.year
+        retirement_month = retirement_date.month
+
+    is_pre_retirement = death_year < retirement_date.year or (death_year == retirement_date.year and death_month < retirement_date.month)
+
+    if is_pre_retirement:
+        # For pre-retirement, use the last entry in overall_table
+        pre_death_entries = [e for e in overall_table if 
+            (e["year"] < death_year) or 
+            (e["year"] == death_year and e["month"] <= death_month)]
+        if not pre_death_entries:
+            return 0, 0, 0, 0  # Handle edge case where no entries exist
+        nps_corpus = pre_death_entries[-1]["nps_corpus"]
+        annuity_corpus = 0
+        lump_sum = nps_corpus
+        nominal_nps_corpus = nps_corpus
+        return 0, lump_sum, nps_corpus, nominal_nps_corpus
+    elif is_vrs:
+        # For VRS, use the last entry in overall_table
+        vrs_entries = [e for e in overall_table if 
+            (e["year"] < retirement_date.year) or 
+            (e["year"] == retirement_date.year and e["month"] <= retirement_date.month)]
+        if not vrs_entries:
+            return 0, 0, 0, 0  # Handle edge case where no entries exist
+        nps_corpus = vrs_entries[-1]["nps_corpus"]
+        annuity_corpus = nps_corpus * (1 - withdrawal_percentage)
+        annual_pension = annuity_corpus * annuity_rate
+        monthly_pension = annual_pension / 12
+        lump_sum = nps_corpus * withdrawal_percentage
+        nominal_nps_corpus = lump_sum + annuity_corpus
+        return monthly_pension, lump_sum, nps_corpus, nominal_nps_corpus
+    else:
+        # For post-retirement, use the last entry in overall_table
+        post_retirement_entries = [e for e in overall_table if 
+            (e["year"] < retirement_date.year) or 
+            (e["year"] == retirement_date.year and e["month"] <= retirement_date.month)]
+        if not post_retirement_entries:
+            return 0, 0, 0, 0  # Handle edge case where no entries exist
+        nps_corpus = post_retirement_entries[-1]["nps_corpus"]
+        annuity_corpus = nps_corpus * (1 - withdrawal_percentage)
+        annual_pension = annuity_corpus * annuity_rate
+        monthly_pension = annual_pension / 12
+        lump_sum = nps_corpus * withdrawal_percentage
+        nominal_nps_corpus = lump_sum + annuity_corpus
+        return monthly_pension, lump_sum, nps_corpus, nominal_nps_corpus
+# ------------------------------------------------------------------------------------------------------------------------------
+
+def initialize_ups_values(retirement_date, switch_date=date(2025, 4, 1)):
     """
-    Initialize the UPS values table with basic information for each year after retirement.
-    Includes lumpsum withdrawal option and support for VRS (voluntary retirement scheme).
+    Calculate UPS values for the retiree with optimized approach.
+    
+    Args:
+        retirement_date (date): The date of retirement
+        switch_date (date): The date when the UPS scheme was implemented
+        
+    Returns:
+        dict: UPS values and parameters dictionary
     """
-    global ups_values_table
-    ups_values_table = []
+    global overall_table, pension_fund_nav_rate, withdrawal_percentage, MIN_UPS_PAYOUT, fitment_factor
+    global pay_commission_interval, inflation_rate, retirement_age
     
     # Find the last 12 months' salary before retirement
     retirement_entries = [e for e in overall_table if 
@@ -212,7 +253,7 @@ def initialize_ups_values(
                          (e["year"] == retirement_date.year and e["month"] <= retirement_date.month)]
     
     if not retirement_entries:
-        return
+        return {}
     
     # Calculate the average of the last 12 months' salary
     last_12_months = retirement_entries[-12:] if len(retirement_entries) >= 12 else retirement_entries
@@ -224,522 +265,631 @@ def initialize_ups_values(
     service_months = (retirement_date.year - first_date.year) * 12 + retirement_date.month - first_date.month
     
     # Check if service is at least 10 years (120 months)
-    has_minimum_service = service_months >= 120  # At least 10 years of service
+    has_minimum_service = service_months >= 120
     
-    # Check if eligible for VRS (Voluntary Retirement Scheme)
-    # VRS can only occur after the officer has attained the age of 50 or completed 30 years of qualifying service
-    vrs_eligible = (service_months >= 30 * 12) or (retirement_age >= 50)  # Updated VRS eligibility condition
+    # Initialize corpus values
+    benchmark_corpus, individual_corpus = calculate_corpus_values(switch_date)
     
-    # Initialize benchmark corpus to start from 0
+    # Calculate initial pension parameters
+    pension_percentage = min(service_months / 300, 1)  # Cap at 25 years (300 months)
+    corpus_ratio = min(individual_corpus / benchmark_corpus if benchmark_corpus > 0 else 0, 1)
+    
+    # Calculate initial assured payout (before lumpsum withdrawal adjustment)
+    assured_payout = (avg_last_12_months_salary / 2) * corpus_ratio * pension_percentage
+    
+    # Calculate lumpsum withdrawal and adjusted pension
+    lumpsum_withdrawal, excess_corpus, adjusted_pension = calculate_lumpsum_and_pension(
+        withdrawal_percentage, benchmark_corpus, individual_corpus, assured_payout, has_minimum_service
+    )
+    
+    # Calculate gratuity
+    gratuity = 0
+    if service_months >= 60:  # 5+ years for gratuity
+        gratuity = (1/10) * avg_last_12_months_salary * (service_months / 6)
+    
+    # Total lump sum is gratuity + excess corpus + lumpsum withdrawal
+    lump_sum = gratuity + excess_corpus + lumpsum_withdrawal
+    
+    return {
+        "retirement_date": retirement_date,
+        "service_months": service_months,
+        "avg_last_12_months_salary": avg_last_12_months_salary,
+        "benchmark_corpus": benchmark_corpus,
+        "individual_corpus": individual_corpus,
+        "corpus_ratio": corpus_ratio,
+        "assured_payout": assured_payout,
+        "adjusted_pension": adjusted_pension,
+        "lumpsum_withdrawal": lumpsum_withdrawal,
+        "excess_corpus": excess_corpus,
+        "gratuity": gratuity,
+        "lump_sum": lump_sum,
+        "has_minimum_service": has_minimum_service
+    }
+
+def calculate_corpus_values(switch_date):
+    """
+    Calculate benchmark and individual corpus values.
+    
+    Args:
+        switch_date (date): The date when the UPS scheme was implemented
+        
+    Returns:
+        tuple: (benchmark_corpus, individual_corpus)
+    """
+    global overall_table, pension_fund_nav_rate
+    
     benchmark_corpus = 0
-
-    # Grow benchmark corpus before the switch date
-    # Contributions to the benchmark corpus are calculated based on monthly salary progression
-    for entry in overall_table:
-        if entry["year"] < switch_date.year or (entry["year"] == switch_date.year and entry["month"] <= switch_date.month):
-            monthly_contribution = entry["monthly_salary"] * 0.2  # 10% employee + 10% government
-            benchmark_corpus += monthly_contribution  # Add monthly contributions to the benchmark corpus
-            benchmark_corpus *= (1 + pension_fund_nav_rate / 12)  # Grow benchmark corpus at NAV rate
-            entry["benchmark_corpus"] = benchmark_corpus  # Store the benchmark corpus in the entry
-
-        else:
-            break
-
-    # Initialize individual corpus (IC) at the switch date
-    # The individual corpus is set to the NPS corpus accumulated until the switch date
     individual_corpus = 0
+
+    # Calculate corpus values up to switch date
     for entry in overall_table:
-        if entry["year"] < switch_date.year or (entry["year"] == switch_date.year and entry["month"] <= switch_date.month):
-            individual_corpus = entry["nps_corpus"]
+        entry_date = date(entry["year"], entry["month"], 1)
+        if entry_date <= switch_date:
             monthly_contribution = entry["monthly_salary"] * 0.2  # 10% employee + 10% government
             benchmark_corpus += monthly_contribution
-            benchmark_corpus *= (1 + pension_fund_nav_rate / 12)
-            entry["benchmark_corpus"] = benchmark_corpus  # Store the benchmark corpus in the entry
+            benchmark_corpus *= (1 + pension_fund_nav_rate / 12)  # Grow at NAV rate
+            individual_corpus = entry["nps_corpus"]  # Set individual corpus to NPS corpus value
+            entry["benchmark_corpus"] = benchmark_corpus
             entry["individual_corpus"] = individual_corpus
         else:
-            break
+            # After switch date, grow both corpus values
+            monthly_contribution = entry["monthly_salary"] * 0.2
+            individual_corpus += monthly_contribution
+            benchmark_corpus += monthly_contribution
+            
+            individual_corpus *= (1 + pension_fund_nav_rate / 12)
+            benchmark_corpus *= (1 + pension_fund_nav_rate / 12)
+            
+            entry["benchmark_corpus"] = benchmark_corpus
+            entry["individual_corpus"] = individual_corpus
+            
+    return benchmark_corpus, individual_corpus
 
-    # After the switch, add contributions to both individual corpus and benchmark corpus
-    for entry in overall_table:
-        if entry["year"] > switch_date.year or (entry["year"] == switch_date.year and entry["month"] > switch_date.month):
-            monthly_contribution = entry["monthly_salary"] * 0.2  # 10% employee + 10% government
-            individual_corpus += monthly_contribution  # Add contributions to individual corpus
-            benchmark_corpus += monthly_contribution  # Add contributions to benchmark corpus
-
-        # Grow both individual corpus and benchmark corpus at the Pension Fund NAV rate
-        individual_corpus *= (1 + pension_fund_nav_rate / 12)
-        benchmark_corpus *= (1 + pension_fund_nav_rate / 12)
-        entry["benchmark_corpus"] = benchmark_corpus  # Store the benchmark corpus in the entry
-        entry["individual_corpus"] = individual_corpus
-
-    # Calculate initial pension
-    # The pension is based on the ratio of individual corpus to benchmark corpus, capped at 1
-    pension_percentage = min(service_months / 300, 1)  # Cap service months at 25 years (300 months)
-    corpus_ratio = min(individual_corpus / benchmark_corpus, 1)  # Upper cap at 1, no lower cap
-    
-    # Apply lumpsum withdrawal reduction to pension if requested
-    # Determine withdrawal amount first (limited to 60% of individual corpus or benchmark corpus, whichever is lower)
-    max_withdrawal_corpus = min(individual_corpus, benchmark_corpus)
-    lumpsum_withdrawal_amount = max_withdrawal_corpus * min(lumpsum_withdrawal_percentage, 0.6)  # Cap at 60%
-    
-    # Calculate pension with reduction due to lumpsum withdrawal
-    # Admissible Payout = Assured payout x (1-LW%)
-    pension_reduction_factor = 1 - (lumpsum_withdrawal_amount / max_withdrawal_corpus)
-    initial_pension = (avg_last_12_months_salary / 2) * corpus_ratio * pension_percentage * pension_reduction_factor
-    
-    # Apply minimum pension amount of ₹10,000 if applicable for 10+ years of service
-    if has_minimum_service and initial_pension < MIN_UPS_PAYOUT:
-        initial_pension = MIN_UPS_PAYOUT
-    
-    # Lump sum calculation (gratuity + potential excess corpus withdrawal)
-    lump_sum = 0
-    if service_months >= 60:  # Only if 5 years of service are completed (for gratuity)
-        qualifying_service_months = service_months
-        # Death gratuity calculation
-        gratuity = (1 / 10) * avg_last_12_months_salary * (qualifying_service_months / 6)
-        lump_sum += gratuity
-        
-        # Add the positive difference between individual_corpus and benchmark_corpus 
-        if individual_corpus > benchmark_corpus:
-            lump_sum += (individual_corpus - benchmark_corpus)
-    
-    # Add the requested lumpsum withdrawal amount
-    lump_sum += lumpsum_withdrawal_amount
-    
-    # For VRS, we need to calculate the normal retirement date
-    vrs_mode = is_vrs or (retirement_age < normal_retirement_age and vrs_eligible)
-    
-    # If VRS, store the normal retirement date
-    if vrs_mode:
-        normal_retirement_year = retirement_date.year + (normal_retirement_age - retirement_age)
-        normal_retirement_date = date(normal_retirement_year, retirement_date.month, retirement_date.day)
-    else:
-        normal_retirement_date = None
-    
-    # Initialize the table with year-by-year values after retirement
-    current_pension = initial_pension
-    dr_year = 0
-    # Assume we'll track 50 years after retirement to cover most possible death ages
-    for year_offset in range(51):  # 0 to 50 years after retirement
-        year = retirement_date.year + year_offset
-
-        # Check for pay commission updates (April of pay commission years)
-        is_pay_commission_year = False
-        for pc_year in range(retirement_date.year, year + 1, pay_commission_interval):
-            if year == pc_year:
-                is_pay_commission_year = True
-                break
-        
-        # Apply pay commission updates
-        if is_pay_commission_year and year > retirement_date.year:  # Don't apply in retirement year
-            current_pension = current_pension * fitment_factor
-            dr_year = 0
-        
-        # Apply DR (assume DR changes every year)
-        dr_rate = 0.02  # 2% Dearness Relief Rate (DR) for based on NPS 2016 Rules average.
-        adjusted_pension = current_pension * (1 + dr_rate)**2*dr_year  # Adjust for semi-annual DR
-        
-        # For VRS case, pension starts only at normal retirement age
-        monthly_pension_to_use = 0
-        if not vrs_mode or (normal_retirement_date and year >= normal_retirement_date.year):
-            monthly_pension_to_use = adjusted_pension
-        else:
-            monthly_pension_to_use = 0  # No pension before normal retirement age for VRS
-        dr_year+=1
-        # Add entry to the table
-        ups_values_table.append({
-            "year": year,
-            "death_age": year - (retirement_date.year - retirement_date.month / 12 + retirement_age),
-            "monthly_pension": monthly_pension_to_use,  # Use 0 for years before normal retirement in VRS cases
-            "annual_pension": monthly_pension_to_use * 12,
-            "lump_sum": lump_sum if year == retirement_date.year else 0,  # Lump sum only in retirement year
-            "present_value": 0,  # Will be calculated when we compute corpus for specific death ages
-            "corpus": 0,         # Will be computed when a specific death age is requested
-            "is_vrs": vrs_mode,
-            "normal_retirement_year": normal_retirement_date.year if normal_retirement_date else None
-        })
-        
-        # For next year, still increment the pension amount even if not paying it yet
-        current_pension = adjusted_pension
-
-def calculate_ups_corpus_and_pension(
-    death_year,
-    inflation_rate, 
-    retirement_date,
-    spouse_age_difference
-):
+def calculate_lumpsum_and_pension(withdrawal_percentage, benchmark_corpus, individual_corpus, assured_payout, has_minimum_service):
     """
-    Calculate the UPS corpus and monthly pension using the pre-computed UPS values table.
-    Returns the inflation-adjusted corpus, nominal corpus, monthly pension, and lump sum.
-    For pre-retirement death, calculates family pension based on last 12 months' salary.
-    Includes family pension calculation for spouse directly in the corpus calculation.
-    Accounts for delayed pension start in VRS cases.
-    """
-    global ups_values_table, overall_table
+    Calculate lumpsum withdrawal amount and adjusted pension based on the UPS rules.
     
-    if not ups_values_table or not overall_table:
-        return 0, 0, 0, 0
+    Args:
+        withdrawal_percentage (float): Percentage of corpus for lumpsum withdrawal (0 to 0.6)
+        benchmark_corpus (float): Benchmark corpus value
+        individual_corpus (float): Individual's corpus value
+        assured_payout (float): Original assured payout before adjustment
+        has_minimum_service (bool): Whether subscriber has minimum service required
         
-    # Handle the case where retirement_date is an integer (retirement year)
+    Returns:
+        tuple: (lumpsum_withdrawal, excess_corpus, adjusted_pension)
+    """
+    global MIN_UPS_PAYOUT
+    
+    # Cap withdrawal percentage at 60%
+    actual_withdrawal_percentage = min(withdrawal_percentage, 0.6)
+    
+    # Calculate excess amount in individual corpus
+    excess_corpus = max(0, individual_corpus - benchmark_corpus)
+    
+    # Calculate lumpsum withdrawal amount based on benchmark corpus
+    applicable_corpus = min(benchmark_corpus, individual_corpus)
+    lumpsum_withdrawal = applicable_corpus * actual_withdrawal_percentage
+    
+    # Calculate adjusted pension with proportionate reduction
+    adjusted_pension = assured_payout * (1 - actual_withdrawal_percentage)
+    
+    # Apply minimum pension if eligible
+    if has_minimum_service and adjusted_pension < MIN_UPS_PAYOUT:
+        adjusted_pension = MIN_UPS_PAYOUT
+    
+    return lumpsum_withdrawal, excess_corpus, adjusted_pension
+
+def calculate_ups_corpus_and_pension(death_year, retirement_date, spouse_age_difference):
+    """
+    Master function to calculate UPS corpus and pension based on the scenario.
+    
+    Args:
+        death_year (int): Year of death
+        retirement_date (date or int): Date of retirement
+        spouse_age_difference (int): Years spouse is expected to live after employee
+        
+    Returns:
+        tuple: (inflation_adjusted_corpus, nominal_corpus, monthly_pension, lump_sum)
+    """
+    global overall_table, normal_retirement_age, retirement_age
+    
+    # Handle case where retirement_date is an integer
     if isinstance(retirement_date, int):
         retirement_year = retirement_date
-        # Default to January of retirement year if only year is provided
         retirement_month = 1
         retirement_date = date(retirement_year, retirement_month, 1)
     elif retirement_date is None:
-        # If retirement_date is None, find the last entry in overall_table
         if overall_table:
             last_entry = overall_table[-1]
-            retirement_year = last_entry["year"]
-            retirement_month = last_entry["month"]
-            retirement_date = date(retirement_year, retirement_month, 1)
+            retirement_date = date(last_entry["year"], last_entry["month"], 1)
         else:
             return 0, 0, 0, 0
     
-    death_month = 12  # Assuming death in December for simplicity
+    # Initialize UPS values
+    ups_values = initialize_ups_values(retirement_date, switch_date=date(2025, 4, 1))
+    if not ups_values:
+        return 0, 0, 0, 0
     
-    # Check if this is a pre-retirement death
+    # Determine scenario: pre-retirement death, VRS, or post-retirement death
+    death_month = 12  # Assume death in December for simplicity
     is_pre_retirement = death_year < retirement_date.year or (death_year == retirement_date.year and death_month < retirement_date.month)
-    # print(f"Death Year: {death_year}, Retirement Date: {retirement_date}, Pre-retirement: {is_pre_retirement}")
     
-    # For pre-retirement death, we need to simulate what entries would be post-death
-    # rather than filtering for actual post-retirement entries
     if is_pre_retirement:
-        # For pre-retirement death, recalculate the average salary based on the last 12 months before death
-        # Find the last 12 months of entries before death
-        pre_death_entries = [e for e in overall_table if 
-                           (e["year"] < death_year) or 
-                           (e["year"] == death_year and e["month"] <= death_month)]
-        
-        # print(f"Number of pre-death entries: {len(pre_death_entries)}")
-        
-        # Calculate average of last 12 months' salary before death
-        last_12_months = pre_death_entries[-12:] if len(pre_death_entries) >= 12 else pre_death_entries
-        if not last_12_months:
-            # print("No last 12 month entries found")
-            return 0, 0, 0, 0
-            
-        avg_last_12_months_salary = sum(e["monthly_salary"] for e in last_12_months) / len(last_12_months)
-        # print(f"Average last 12 months salary: {avg_last_12_months_salary}")
-        
-        # Calculate service months until death
-        first_entry = overall_table[0]
-        first_date = date(first_entry["year"], first_entry["month"], 1)
-        service_months = (death_year - first_date.year) * 12 + death_month - first_date.month
-        # print(f"Service months until death: {service_months}")
-        
-        # Calculate what pension would have been if retired on death date
-        # Then apply 60% family pension
-        pension_percentage = min(service_months / 300, 1)  # Cap service months at 25 years (300 months)
-        
-        # Get benchmark and individual corpus values as of death date
-        benchmark_corpus = 0
-        individual_corpus = 0
-        
-        # Use the last entry in overall_table before or at death date
-        for entry in overall_table:
-            if (entry["year"] < death_year) or (entry["year"] == death_year and entry["month"] <= death_month):
-                benchmark_corpus = entry.get("benchmark_corpus", 0)
-                individual_corpus = entry.get("nps_corpus", 0)
-        
-        corpus_ratio = min(individual_corpus / benchmark_corpus if benchmark_corpus > 0 else 0, 1)
-        
-        # Calculate what the pension would have been
-        potential_pension = (avg_last_12_months_salary / 2) * corpus_ratio * pension_percentage
-        
-        # Family pension is 60% of what would have been the pension
-        family_pension_monthly = potential_pension * 0.6
-        
-        # Apply minimum pension if applicable (service > 10 years)
-        MIN_UPS_PAYOUT = 10000  # Define the constant if it's not already defined
-        if service_months >= 120 and family_pension_monthly < (MIN_UPS_PAYOUT * 0.6):
-            family_pension_monthly = MIN_UPS_PAYOUT * 0.6
-                
-        # Now we need to get or create entries for years AFTER death
-        # For pre-retirement death, we need to construct our own relevant entries
-        # as there won't be any entries in ups_values_table for years before retirement
-        relevant_entries = []
-        
-        # Create entries for each year from death year to death year + 50 (or a reasonable upper limit)
-        max_year = death_year + spouse_age_difference  # Adjust as needed
-        current_pension = family_pension_monthly
-        
-        for year in range(death_year, max_year + 1):
-            # Apply yearly increases (DR adjustments, fitment factors, etc.)
-            # This is simplified; in reality you'd want to apply the same rules as in initialize_ups_values
-            if year > death_year:
-                current_pension *= 1.02  # Apply 2% DR as in the original code
-            
-            relevant_entries.append({
-                "year": year,
-                "monthly_pension": current_pension,
-                "annual_pension": current_pension * 12,
-                "lump_sum": 0,  # Will calculate separately
-                "present_value": 0,  # Will calculate below
-                "corpus": 0,  # Will calculate below
-                "is_vrs": False
-            })
-    else:
-        # For normal retirement or post-retirement death, use the existing entries
-        relevant_entries = [e for e in ups_values_table 
-                        if e["year"] >= retirement_date.year and e["year"] <= death_year]
-        
-        if not relevant_entries:
-            print("No relevant entries found for post-retirement calculation")
-            return 0, 0, 0, 0
+        return calculate_pre_retirement_benefits(death_year, retirement_date, spouse_age_difference, ups_values)
     
-    # Calculate spouse's death year
-    spouse_death_year = death_year + spouse_age_difference
+    is_vrs = retirement_age < normal_retirement_age
+    if is_vrs:
+        return calculate_vrs_benefits(death_year, retirement_date, spouse_age_difference, ups_values)
     
-    # Calculate present value for each year's pension
-    corpus = 0
-    nominal_corpus = 0
+    return calculate_post_retirement_benefits(death_year, retirement_date, spouse_age_difference, ups_values)
+
+def calculate_pre_retirement_benefits(death_year, retirement_date, spouse_age_difference, ups_values):
+    """
+    Calculate benefits for pre-retirement death scenario.
     
-    for entry in relevant_entries:
-        # Calculate months since retirement for NPV
-        if is_pre_retirement:
-            # For pre-retirement death, calculate from death date
-            months_since_death = (entry["year"] - death_year) * 12
-            if entry["year"] == death_year:
-                months_since_death = 12 - death_month
-            
-            # Use death as reference point
-            discount_months = months_since_death
-        else:
-            # For post-retirement death, calculate from retirement date
-            months_since_retirement = (entry["year"] - retirement_date.year) * 12
-            if entry["year"] == retirement_date.year:
-                months_since_retirement = 12 - retirement_date.month
-            
-            # Use retirement as reference point
-            discount_months = months_since_retirement
+    Args:
+        death_year (int): Year of death
+        retirement_date (date): Date of retirement
+        spouse_age_difference (int): Years spouse is expected to live after employee
+        ups_values (dict): Pre-calculated UPS values
         
-        # For pre-retirement death, we already calculated family pension
-        if is_pre_retirement:
-            annual_pension_amount = entry["annual_pension"]  # Already contains family pension
-        else:
-            annual_pension_amount = entry["annual_pension"]
-        
-        # Discount the annual pension to present value
-        present_value = annual_pension_amount / ((1 + (inflation_rate / 12)) ** discount_months)
-        entry["present_value"] = present_value
-        corpus += present_value
-        # Add nominal value of annual pension
-        nominal_corpus += annual_pension_amount
+    Returns:
+        tuple: (inflation_adjusted_corpus, nominal_corpus, monthly_pension, lump_sum)
+    """
+    global overall_table, inflation_rate, MIN_UPS_PAYOUT
     
-    # Add spouse's family pension (60% of the assured pension) for years after employee's death
-    if spouse_death_year > death_year:
-        # Get the family pension amount
-        if is_pre_retirement:
-            # Already calculated family pension for pre-retirement death
-            family_pension_monthly_for_spouse = 0 
-        else:
-            # For post-retirement death, family pension is 60% of last pension
-            last_entry = relevant_entries[-1]
-            family_pension_monthly_for_spouse = last_entry["monthly_pension"] * 0.6
-            
-        family_pension_annual = family_pension_monthly_for_spouse * 12
-        
-        
-        # Add spouse's pension to nominal corpus
-        spouse_nominal_pension = family_pension_annual * spouse_age_difference
-        nominal_corpus += spouse_nominal_pension
-        
-        # Calculate present value of spouse's pension for each year
-        for year_offset in range(1, spouse_age_difference + 1):
-            current_year = death_year + year_offset
-            
-            if is_pre_retirement:
-                # For pre-retirement death, calculate from death date
-                months_since_death = year_offset * 12
-                discount_months = months_since_death
-            else:
-                # For post-retirement, calculate from retirement date
-                months_since_retirement = (current_year - retirement_date.year) * 12
-                if retirement_date.year == current_year:
-                    months_since_retirement = 12 - retirement_date.month
-                discount_months = months_since_retirement
-            
-            # Discount the annual family pension to present value
-            year_present_value = family_pension_annual / ((1 + (inflation_rate / 12)) ** discount_months)
-            corpus += year_present_value
+    death_month = 12  # Assume death in December
     
-    # Calculate death gratuity for pre-retirement death
+    # Calculate average salary for last 12 months before death
+    pre_death_entries = [e for e in overall_table if 
+                       (e["year"] < death_year) or 
+                       (e["year"] == death_year and e["month"] <= death_month)]
+    
+    if not pre_death_entries:
+        return 0, 0, 0, 0
+    
+    last_12_months = pre_death_entries[-12:] if len(pre_death_entries) >= 12 else pre_death_entries
+    avg_last_12_months_salary = sum(e["monthly_salary"] for e in last_12_months) / len(last_12_months)
+    
+    # Calculate service months until death
+    first_entry = overall_table[0]
+    first_date = date(first_entry["year"], first_entry["month"], 1)
+    service_months = (death_year - first_date.year) * 12 + death_month - first_date.month
+    
+    # Calculate potential pension if retired on death date
+    pension_percentage = min(service_months / 300, 1)
+    
+    # Get corpus values at death date
+    death_entry = next((e for e in overall_table if 
+                      e["year"] == death_year and e["month"] >= death_month), 
+                     next((e for e in overall_table if e["year"] > death_year), None))
+    
+    benchmark_corpus = death_entry.get("benchmark_corpus", 0) if death_entry else 0
+    individual_corpus = death_entry.get("individual_corpus", death_entry.get("nps_corpus", 0)) if death_entry else 0
+    
+    corpus_ratio = min(individual_corpus / benchmark_corpus if benchmark_corpus > 0 else 0, 1)
+    
+    # Calculate potential pension and family pension (60%)
+    potential_pension = (avg_last_12_months_salary / 2) * corpus_ratio * pension_percentage
+    family_pension_monthly = potential_pension * 0.6
+    
+    # Apply minimum pension if eligible (10+ years service)
+    if service_months >= 120 and family_pension_monthly < (MIN_UPS_PAYOUT * 0.6):
+        family_pension_monthly = MIN_UPS_PAYOUT * 0.6
+    
+    # Calculate present value for spouse's pension
+    corpus, nominal_corpus = calculate_spouse_pension_value(
+        death_year, death_month, family_pension_monthly, spouse_age_difference, inflation_rate
+    )
+    
+    # Calculate death gratuity and excess corpus
+    excess_corpus = max(0, individual_corpus - benchmark_corpus)
+    
     lump_sum = 0
-    if is_pre_retirement:
-        # For pre-retirement death, calculate death gratuity based on service
-        first_entry = overall_table[0]
-        first_date = date(first_entry["year"], first_entry["month"], 1)
-        service_months = (death_year - first_date.year) * 12 + death_month - first_date.month
-        
-        if service_months >= 60:  # 5 years minimum for gratuity
-            qualifying_service_months = service_months
-            # Use avg_last_12_months_salary calculated earlier for pre-retirement death
-            gratuity = (1 / 10) * avg_last_12_months_salary * (qualifying_service_months / 6)
-            lump_sum += gratuity
-            # print(f"Death gratuity: {gratuity}")
-    else:
-        # For post-retirement, use retirement year lump sum
-        lump_sum = next((e["lump_sum"] for e in relevant_entries if e["year"] == retirement_date.year), 0)
+    if service_months >= 60:  # 5+ years for gratuity
+        gratuity = (1/10) * avg_last_12_months_salary * (service_months / 6)
+        lump_sum = gratuity + excess_corpus
     
     corpus += lump_sum
     nominal_corpus += lump_sum
     
-    # Get the monthly pension amount
-    if is_pre_retirement:
-        monthly_pension = family_pension_monthly
-    else:
-        last_entry = relevant_entries[-1]
-        monthly_pension = last_entry["monthly_pension"]
+    return corpus, nominal_corpus, family_pension_monthly, lump_sum
+
+def calculate_spouse_pension_value(start_year, start_month, monthly_pension, years_duration, inflation_rate):
+    """
+    Calculate present and nominal value of pension over a period of years.
     
-    # Update the corpus value in the table entries we used
-    for entry in relevant_entries:
-        entry["corpus"] = corpus
-        entry["nominal_corpus"] = nominal_corpus
+    Args:
+        start_year (int): Year pension starts
+        start_month (int): Month pension starts (1-12)
+        monthly_pension (float): Initial monthly pension amount
+        years_duration (int): Duration in years
+        inflation_rate (float): Annual inflation rate
+        
+    Returns:
+        tuple: (present_value, nominal_value)
+    """
+    corpus = 0
+    nominal_corpus = 0
     
-    # print(f"Final results - Corpus: {corpus}, Nominal: {nominal_corpus}, Monthly: {monthly_pension}, Lump sum: {lump_sum}")
+    current_pension = monthly_pension
+    
+    for year_offset in range(years_duration + 1):
+        year = start_year + year_offset
+        
+        # Apply annual DR (2%) after first year
+        if year > start_year:
+            current_pension *= 1.02
+        
+        annual_pension = current_pension * 12
+        nominal_corpus += annual_pension
+        
+        # Calculate present value
+        months_since_start = (year - start_year) * 12
+        if year == start_year:
+            months_since_start = 12 - start_month
+        
+        present_value = annual_pension / ((1 + (inflation_rate / 12)) ** months_since_start)
+        corpus += present_value
+    
+    return corpus, nominal_corpus
+
+def calculate_pension_for_year(initial_pension, base_year, current_year, pay_commission_interval, fitment_factor):
+    """
+    Calculate pension amount for a specific year considering pay commission updates and DR.
+    
+    Args:
+        initial_pension (float): Initial pension amount
+        base_year (int): Year when pension started
+        current_year (int): Year for which to calculate pension
+        pay_commission_interval (int): Years between pay commissions
+        fitment_factor (float): Increase factor during pay commission
+        
+    Returns:
+        float: Adjusted monthly pension
+    """
+    pension = initial_pension
+    dr_year = 0
+    
+    for year in range(base_year, current_year + 1):
+        # Check for pay commission updates
+        is_pay_commission_year = False
+        for pc_year in range(base_year, year + 1, pay_commission_interval):
+            if year == pc_year and year > base_year:
+                is_pay_commission_year = True
+                break
+        
+        # Apply pay commission fitment factor
+        if is_pay_commission_year:
+            pension *= fitment_factor
+            dr_year = 0  # Reset DR counter after pay commission
+        
+        # Apply Dearness Relief (DR)
+        dr_rate = 0.02  # 2% DR per year
+        if dr_year > 0:
+            pension *= (1 + dr_rate)
+        
+        dr_year += 1
+    
+    return pension
+
+def calculate_vrs_benefits(death_year, retirement_date, spouse_age_difference, ups_values):
+    """
+    Calculate benefits for VRS (Voluntary Retirement Scheme) scenario.
+    
+    Args:
+        death_year (int): Year of death
+        retirement_date (date): Date of retirement
+        spouse_age_difference (int): Years spouse is expected to live after employee
+        ups_values (dict): Pre-calculated UPS values
+        
+    Returns:
+        tuple: (inflation_adjusted_corpus, nominal_corpus, monthly_pension, lump_sum)
+    """
+    global overall_table, inflation_rate, normal_retirement_age, retirement_age, pay_commission_interval, fitment_factor
+    
+    # Calculate normal retirement year
+    years_to_normal_retirement = normal_retirement_age - retirement_age
+    normal_retirement_year = retirement_date.year + int(years_to_normal_retirement)
+    
+    initial_pension = ups_values["adjusted_pension"]  # Use adjusted pension (after withdrawal)
+    lump_sum = ups_values["lump_sum"]
+    
+    corpus = 0
+    nominal_corpus = 0
+    
+    # Add pension benefits from normal retirement to death
+    for year in range(max(normal_retirement_year, retirement_date.year), death_year + 1):
+        # Calculate pension for the year
+        pension = calculate_pension_for_year(
+            initial_pension, 
+            normal_retirement_year, 
+            year, 
+            pay_commission_interval, 
+            fitment_factor
+        )
+        
+        annual_pension = pension * 12
+        nominal_corpus += annual_pension
+        
+        # Calculate present value
+        months_since_retirement = (year - retirement_date.year) * 12
+        if year == retirement_date.year:
+            months_since_retirement = 12 - retirement_date.month
+            
+        present_value = annual_pension / ((1 + (inflation_rate / 12)) ** months_since_retirement)
+        corpus += present_value
+    
+    # Add spouse's family pension (60%) for years after employee's death
+    if death_year < retirement_date.year + spouse_age_difference:
+        # Calculate pension at death
+        pension_at_death = calculate_pension_for_year(
+            initial_pension, 
+            normal_retirement_year, 
+            death_year, 
+            pay_commission_interval, 
+            fitment_factor
+        )
+        
+        family_pension = pension_at_death * 0.6
+        
+        # Calculate remaining spouse years
+        remaining_spouse_years = retirement_date.year + spouse_age_difference - death_year
+        
+        # Calculate spouse pension values
+        spouse_corpus, spouse_nominal = calculate_spouse_pension_value(
+            death_year, 12, family_pension, remaining_spouse_years, inflation_rate
+        )
+        
+        corpus += spouse_corpus
+        nominal_corpus += spouse_nominal
+    
+    # Add lump sum
+    corpus += lump_sum
+    nominal_corpus += lump_sum
+    
+    # Get monthly pension amount from normal retirement year (or death year if later)
+    monthly_pension = calculate_pension_for_year(
+        initial_pension, 
+        normal_retirement_year, 
+        max(normal_retirement_year, death_year), 
+        pay_commission_interval, 
+        fitment_factor
+    )
+    
     return corpus, nominal_corpus, monthly_pension, lump_sum
 
+def calculate_post_retirement_benefits(death_year, retirement_date, spouse_age_difference, ups_values):
+    """
+    Calculate benefits for post-retirement death scenario.
+    
+    Args:
+        death_year (int): Year of death
+        retirement_date (date): Date of retirement
+        spouse_age_difference (int): Years spouse is expected to live after employee
+        ups_values (dict): Pre-calculated UPS values
+        
+    Returns:
+        tuple: (inflation_adjusted_corpus, nominal_corpus, monthly_pension, lump_sum)
+    """
+    global overall_table, inflation_rate, pay_commission_interval, fitment_factor
+    
+    initial_pension = ups_values["adjusted_pension"]  # Use adjusted pension (after withdrawal)
+    lump_sum = ups_values["lump_sum"]
+    
+    corpus = 0
+    nominal_corpus = 0
+    
+    # Add pension benefits from retirement to death
+    for year in range(retirement_date.year, death_year + 1):
+        # Calculate pension for the year
+        pension = calculate_pension_for_year(
+            initial_pension, 
+            retirement_date.year, 
+            year, 
+            pay_commission_interval, 
+            fitment_factor
+        )
+        
+        annual_pension = pension * 12
+        nominal_corpus += annual_pension
+        
+        # Calculate present value
+        months_since_retirement = (year - retirement_date.year) * 12
+        if year == retirement_date.year:
+            months_since_retirement = 12 - retirement_date.month
+            
+        present_value = annual_pension / ((1 + (inflation_rate / 12)) ** months_since_retirement)
+        corpus += present_value
+    
+    # Add spouse's family pension (60%) for years after employee's death
+    if death_year < retirement_date.year + spouse_age_difference:
+        # Calculate pension at death
+        pension_at_death = calculate_pension_for_year(
+            initial_pension, 
+            retirement_date.year, 
+            death_year, 
+            pay_commission_interval, 
+            fitment_factor
+        )
+        
+        family_pension = pension_at_death * 0.6
+        
+        # Calculate remaining spouse years
+        remaining_spouse_years = retirement_date.year + spouse_age_difference - death_year
+        
+        # Calculate spouse pension values
+        spouse_corpus, spouse_nominal = calculate_spouse_pension_value(
+            death_year, 12, family_pension, remaining_spouse_years, inflation_rate
+        )
+        
+        corpus += spouse_corpus
+        nominal_corpus += spouse_nominal
+    
+    # Add lump sum
+    corpus += lump_sum
+    nominal_corpus += lump_sum
+    
+    # Get monthly pension at death
+    monthly_pension = calculate_pension_for_year(
+        initial_pension, 
+        retirement_date.year, 
+        death_year, 
+        pay_commission_interval, 
+        fitment_factor
+    )
+    
+    return corpus, nominal_corpus, monthly_pension, lump_sum# ----------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------
 def generate_mortality_comparison_table(
-    birth_year, 
-    birth_month,
     retirement_age,
-    inflation_rate,
     fitment_factor,
     pay_commission_interval,
-    nps_corpus,
-    withdrawal_percentage,
     annuity_rate,
-    spouse_age_difference,
-    lumpsum_withdrawal_percentage=0,
-    is_vrs=False,
-    normal_retirement_age=60
+    spouse_age_difference
 ):
     """
     Generate a comparison table for different death ages.
     Handles pre-retirement deaths, lumpsum withdrawal, and VRS scenarios.
     Spousal pension is now included in the corpus calculation.
     """
+    global birth_year, birth_month, overall_table
+
     retirement_year = birth_year + retirement_age
     retirement_date = date(retirement_year, birth_month, 1)
     
     # Initialize the UPS values table if it hasn't been done yet
-    if not ups_values_table:
-        initialize_ups_values(
-            retirement_date,
-            inflation_rate,
-            fitment_factor,
-            pay_commission_interval,
-            retirement_age,
-            lumpsum_withdrawal_percentage,
-            is_vrs,
-            normal_retirement_age
-        )
-    
     table_data = []
     
-    # For each potential death year from join year plus 10 years to 60 years after birth
+    # Traverse death_year in reverse order
     join_date = date(overall_table[0]["year"], overall_table[0]["month"], 1)
     death_year_start = join_date.year + 10
-    
-    for death_year in range(death_year_start, birth_year + 101):
-        # Use the month from birth_month for consistency
-        death_month = birth_month
-        
-            # Calculate NPS values (they will be adjusted based on death age)
-        monthly_pension_nps, lump_sum_nps, rop_value = calculate_nps_pension_with_rop(
-            nps_corpus, 
-            withdrawal_percentage=withdrawal_percentage, 
-            annuity_rate=annuity_rate
-        )
+    death_year_end = birth_year + 100
 
+    for death_year in range(death_year_start, death_year_end, 1):
+        # Calculate NPS values (they will be adjusted based on death age)
+        monthly_pension_nps, lump_sum_nps, nps_corpus, nominal_nps_corpus = calculate_nps_pension_with_rop( 
+            death_year,
+            retirement_date, 
+            annuity_rate
+        )
         # Calculate UPS corpus and pension for this death year (including spousal pension)
         ups_corpus, nominal_ups_corpus, monthly_pension_ups, lump_sum_ups = calculate_ups_corpus_and_pension(
             death_year,
-            inflation_rate,
             retirement_date,
             spouse_age_difference
         )
-
         death_age = round(death_year - birth_year + (birth_month - 1) / 12)  # Round off death age
-        is_pre_retirement = death_year < retirement_year or (death_year == retirement_year and death_month < retirement_date.month)
-        
-        # Initialize NPS values
-        total_nps_value = 0
-        total_nps_value_nominal = 0
-
-        # For pre-retirement deaths, calculate NPS death benefit
-        if is_pre_retirement:
-            # Find NPS corpus at time of death
-            death_entries = [e for e in overall_table 
-                            if (e["year"] < death_year) or 
-                               (e["year"] == death_year and e["month"] <= death_month)]
-            
-            if death_entries:
-                # Get NPS corpus at time of death
-                nps_at_death = death_entries[-1]["nps_corpus"]
-                
-                # For pre-retirement death, entire NPS corpus is paid to nominees
-                total_nps_value = nps_at_death
-                total_nps_value_nominal = nps_at_death
-                pre_retirement_monthly_pension_nps = 0  # No pension before retirement
-                lump_sum_nps = nps_at_death  # Entire corpus as lump sum
-            else:
-                total_nps_value = 0
-                total_nps_value_nominal = 0
-                pre_retirement_monthly_pension_nps = 0
-                lump_sum_nps = 0
-        else:
-            # Post-retirement calculations
-            # Calculate years receiving pension
-            years_receiving_pension = death_year - retirement_year
-            
-            # Calculate total NPS value including pension received and return of purchase price
-            total_nps_value_nominal = lump_sum_nps + (monthly_pension_nps * 12 * years_receiving_pension) + rop_value
-
-            # Calculate inflation-adjusted NPS value
-            # Use a more accurate inflation adjustment formula
-            if years_receiving_pension > 0:
-                inflation_factor = (1 - (1 / (1 + inflation_rate) ** years_receiving_pension)) / inflation_rate * (1+inflation_rate)
-                discounted_rop = rop_value / ((1 + inflation_rate) ** years_receiving_pension)
-                total_nps_value = lump_sum_nps + (monthly_pension_nps * 12 * inflation_factor) + discounted_rop
-            else:
-                total_nps_value = lump_sum_nps + rop_value
-
-        # Add row to table - include both nominal and inflation-adjusted values
-        if is_pre_retirement:
-            # For pre-retirement, ensure minimum pension is applied for 10+ years of service
-            service_months = (death_year - join_date.year) * 12 + (death_month - join_date.month)
-            if service_months >= 120 and monthly_pension_ups < MIN_UPS_PAYOUT * 0.6:  # 60% of minimum pension
-                monthly_pension_ups = MIN_UPS_PAYOUT * 0.6  # Ensure minimum family pension
-                
-            table_data.append([
-                death_age,
-                monthly_pension_ups,  # Family pension
-                pre_retirement_monthly_pension_nps,
-                lump_sum_ups,  # Death gratuity
-                lump_sum_nps,
-                ups_corpus,  # Inflation-adjusted UPS corpus (now includes spousal pension)
-                total_nps_value,  # Inflation-adjusted NPS value
-                nominal_ups_corpus,  # Nominal UPS corpus (now includes spousal pension)
-                total_nps_value_nominal  # Nominal NPS value
-            ])
-        else:
-            table_data.append([
-                death_age,
-                monthly_pension_ups,
-                monthly_pension_nps,
-                lump_sum_ups,
-                lump_sum_nps,
-                ups_corpus,  # Inflation-adjusted UPS corpus (now includes spousal pension)
-                total_nps_value,  # Inflation-adjusted NPS value
-                nominal_ups_corpus,  # Nominal UPS corpus (now includes spousal pension)
-                total_nps_value_nominal  # Nominal NPS value
-            ])
-    
+        table_data.append([
+            death_age,
+            monthly_pension_ups,  # Family pension
+            monthly_pension_nps,  # NPS pension
+            lump_sum_ups,  # Death gratuity
+            lump_sum_nps,
+            ups_corpus,  # Inflation-adjusted UPS corpus (now includes spousal pension)
+            nps_corpus,  # Inflation-adjusted NPS value
+            nominal_ups_corpus,  # Nominal UPS corpus (now includes spousal pension)
+            nominal_nps_corpus  # Nominal NPS value
+        ])
     return table_data
 
+def generate_csv_file(headers, table_data, output_file):
+    """
+    Generate a CSV file from the given headers and table data.
+    
+    Parameters:
+    - headers: List of column headers.
+    - table_data: List of rows, where each row is a list of column values.
+    - output_file: Path to the output CSV file.
+    """
+    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(headers)  # Write headers
+        writer.writerows(table_data)  # Write rows
+    print(f"CSV file saved to {output_file}")
+
+def generate_markdown_table(headers, table_data, output_file):
+    """
+    Generate a Markdown table from the given headers and table data and save it to a file.
+    
+    Parameters:
+    - headers: List of column headers.
+    - table_data: List of rows, where each row is a list of column values.
+    - output_file: Path to the output Markdown file.
+    """
+    with open(output_file, 'w', encoding='utf-8') as f:
+        # Write headers
+        f.write("| " + " | ".join(headers) + " |\n")
+        f.write("|" + " --- |" * len(headers) + "\n")
+        
+        # Write rows
+        for row in table_data:
+            f.write("| " + " | ".join(str(col) for col in row) + " |\n")
+    print(f"Markdown table saved to {output_file}")
+
+def generate_markdown_file(headers, table_data, salary_progression, inputs, summary, output_file):
+    """
+    Generate a Markdown file containing inputs, salary progression, a comparison table, and a summary.
+    
+    Parameters:
+    - headers: List of column headers for the comparison table.
+    - table_data: List of rows for the comparison table.
+    - salary_progression: List of salary progression rows.
+    - inputs: Dictionary of inputs and their values.
+    - summary: List of tuples summarizing which system is better at different death ages.
+    - output_file: Path to the output Markdown file.
+    """
+    with open(output_file, 'w', encoding='utf-8') as f:
+        # Write inputs section
+        f.write("# Monthly-Based Corpus Comparison (UPS vs NPS with RoP Annuity)\n\n")
+        f.write("## Inputs\n\n")
+        for key, value in inputs.items():
+            f.write(f"- **{key}**: {value}\n")
+        f.write("\n---\n\n")
+
+        # Write salary progression section
+        f.write("## Salary Progression\n\n")
+        f.write("| Year | Month | Pay Level | Basic Pay (₹) | Monthly Salary (₹) | NPS Corpus (₹) |\n")
+        f.write("|------|-------|-----------|----------------|---------------------|-----------------|\n")
+        for row in salary_progression:
+            f.write(f"| {row['year']} | {row['month']} | Level {row['pay_level']} | ₹ {row['basic_pay']:.2f} | ₹ {row['monthly_salary']:.2f} | ₹ {row['nps_corpus']:.2f} |\n")
+        f.write("\n---\n\n")
+
+        # Write comparison table section
+        f.write("## NPS vs UPS Comparison Across Different Death Ages\n\n")
+        f.write("| " + " | ".join(headers) + " |\n")
+        f.write("|" + " --- |" * len(headers) + "\n")
+        for row in table_data:
+            f.write("| " + " | ".join(str(col) for col in row) + " |\n")
+        f.write("\n---\n\n")
+
+        # Write summary section
+        f.write("## Summary: Which System Is Better at Different Death Ages\n\n")
+        if summary:
+            for age, system, ups_value, nps_value in summary:
+                f.write(f"- From age **{age}**: **{system}** is better\n")
+                f.write(f"  - UPS Value: ₹ {ups_value:,.2f}\n")
+                f.write(f"  - NPS Value: ₹ {nps_value:,.2f}\n")
+                f.write(f"  - Difference: ₹ {abs(ups_value - nps_value):,.2f}\n\n")
+        else:
+            f.write("No data available for comparison.\n")
+        f.write("\n---\n\n")
+    print(f"Markdown file saved to {output_file}")
+
 def main():
+    global withdrawal_percentage  # Declare global variable
+    global ups_values_table, overall_table
+    global normal_retirement_age, inflation_rate, fitment_factor, retirement_age
+    global MIN_UPS_PAYOUT
+    global pension_fund_nav_rate
+    global spouse_age_difference
+    global death_age
+    global retirement_month
+    global retirement_year
+    global retirement_date
+    global death_year
+    global death_month
     """
     Main function to calculate and compare UPS and NPS benefits.
     Collects user inputs, calculates salary progression, and displays results.
@@ -756,8 +906,6 @@ def main():
     # Seniority year might be different from joining year
     seniority_year = int(input("Enter seniority year (default: 2022): ") or 2022)
     seniority_month = int(input("Enter seniority month (1-12, default: 1): ") or 1)
-    
-    normal_retirement_age = 60
     
     # Ask about actual retirement age (could be less for VRS)
     retirement_age_input = input(f"Enter actual retirement age (default: {normal_retirement_age}, less than {normal_retirement_age} for VRS): ")
@@ -790,9 +938,8 @@ def main():
         fitment_factor = float(fitment_factor_input)
         inflation_rate = float(input("Enter inflation rate (default: 0.05 for 5%): ") or 0.05)
     else:
-        inflation_rate = 0.05  # Default inflation rate
         cost_of_living_adjustment = 0.2  # Default COLA
-        fitment_factor = calculate_fitment_factor(inflation_rate, cost_of_living_adjustment)
+        fitment_factor = calculate_fitment_factor(cost_of_living_adjustment)
 
     print(f"Calculated Fitment Factor: {fitment_factor}")
 
@@ -804,10 +951,12 @@ def main():
     # Ask for desired annuity and lumpsum withdrawal percentages with default of 0
     withdrawal_percentage_input = input("Enter desired annuity and lumpsum withdrawal percentage (0-60%, default: 0%): ") or "0"
     withdrawal_percentage = min(float(withdrawal_percentage_input) / 100, 0.6)  # Convert percentage to decimal and cap at 60%
-    lumpsum_withdrawal_percentage = withdrawal_percentage  # Set to the same value
-    
+    if withdrawal_percentage < 0:
+        withdrawal_percentage = 0
+    elif withdrawal_percentage > 0.6:
+        withdrawal_percentage = 0.6
     print(f"Annuity percentage set to: {withdrawal_percentage * 100}%")
-    print(f"UPS lumpsum withdrawal percentage set to: {lumpsum_withdrawal_percentage * 100}%")
+    print(f"UPS lumpsum withdrawal percentage set to: {withdrawal_percentage * 100}%")
     
     # NPS annuity parameters (rate)
     annuity_rate = float(input("Enter annual annuity rate for Return of Purchase Price plan (default: 0.06 for 6%): ") or 0.06)
@@ -901,43 +1050,13 @@ def main():
             current_date = date(current_date.year, current_date.month + 1, 1)
 
     # Calculate NPS corpus and update the overall_table with monthly NPS corpus values
-    nps_corpus = calculate_nps_corpus(
+    initialize_nps_corpus(
         equity_return, 
         corporate_bond_return, 
         gsec_return, 
         life_cycle_fund=life_cycle_fund  # Pass selected life cycle fund
     )
-    
-    # Calculate NPS pension with Return of Purchase Price
-    monthly_pension, lump_sum, rop_value = calculate_nps_pension_with_rop(
-        nps_corpus, 
-        withdrawal_percentage, 
-        annuity_rate=annuity_rate
-    )
-    
-    # Initialize the UPS values table - now passing normal_retirement_age and is_vrs
-    initialize_ups_values(
-        retirement_date,
-        inflation_rate,
-        fitment_factor,
-        pay_commission_interval,
-        retirement_age,
-        lumpsum_withdrawal_percentage,
-        is_vrs=is_vrs,
-        normal_retirement_age=normal_retirement_age
-    )
-    
-    # Check if death is pre-retirement
-    is_pre_retirement = death_year < retirement_year or (death_year == retirement_year and death_month < retirement_month)
-    
-    # Calculate UPS corpus for the input death year and month
-    ups_corpus, nominal_ups_corpus, monthly_pension_ups, lump_sum_ups = calculate_ups_corpus_and_pension(
-        death_year,
-        inflation_rate, 
-        retirement_date,
-        spouse_age_difference
-    )
-
+                
     # Display results - show key level changes and pay commission months
     print("\n--- Salary and NPS Corpus Progression (Key Months) ---")
     print("Year | Month | Pay Level | Basic Pay | Monthly Salary | NPS Corpus")
@@ -982,55 +1101,17 @@ def main():
     for entry in displayed_entries:
         month_name = date(2000, entry["month"], 1).strftime('%b')
         print(f"{entry['year']} | {month_name:5} | Level {entry['pay_level']} | {locale.currency(entry['basic_pay'], grouping=True)} | {locale.currency(entry['monthly_salary'], grouping=True)} | {locale.currency(entry['nps_corpus'], grouping=True)}")
-
-    print(f"\nTotal months in service: {len(overall_table)}")
-    
-    # Display pre-retirement death notice if applicable
-    if is_pre_retirement:
-        print("\n--- PRE-RETIREMENT DEATH SCENARIO ---")
-        print(f"Death occurs at age {death_age}, before retirement age {retirement_age}")
-        print(f"NPS Benefit: Full corpus of {locale.currency(lump_sum_nps, grouping=True)} paid to nominees")
-        print(f"UPS Family Pension: {locale.currency(monthly_pension_ups, grouping=True)} per month until spouse's death")
-        print(f"UPS Death Gratuity: {locale.currency(lump_sum_ups, grouping=True)}")
-    else:
-        # Display NPS details with RoP
-        print("\n--- NPS with Return of Purchase Price (RoP) Details ---")
-        print(f"Final NPS Corpus: {locale.currency(nps_corpus, grouping=True)}")
-        print(f"Lump Sum at Retirement ({(withdrawal_percentage)*100:.0f}%): {locale.currency(lump_sum, grouping=True)}")
-        print(f"Amount Used for Annuity ({(1-withdrawal_percentage)*100:.0f}%): {locale.currency(rop_value, grouping=True)}")
-        print(f"Monthly NPS Pension (at {annuity_rate*100:.1f}% annuity rate): {locale.currency(monthly_pension, grouping=True)}")
-        print(f"Return of Purchase Price on Death: {locale.currency(rop_value, grouping=True)}")
-        
-        # Display UPS details with VRS information if applicable
-        print("\n--- UPS Details ---")
-        if is_vrs:
-            normal_retirement_year = retirement_year + (normal_retirement_age - retirement_age)
-            print(f"VRS Case: Pension payments will start from year {normal_retirement_year} (normal retirement age)")
-        
-        print(f"Total UPS Corpus (Pension + Gratuity): {locale.currency(ups_corpus, grouping=True)}")
-        print(f"UPS Monthly Pension: {locale.currency(monthly_pension_ups, grouping=True)}")
-        print(f"UPS Lump Sum (Including withdrawal of {lumpsum_withdrawal_percentage*100:.1f}%): {locale.currency(lump_sum_ups, grouping=True)}")
-        if lumpsum_withdrawal_percentage > 0:
-            print(f"Note: UPS pension reduced by {lumpsum_withdrawal_percentage*100:.1f}% due to lumpsum withdrawal")
-    
+    print("\n--- End of Salary Progression ---")
     # Generate mortality comparison table with updated parameters
     print("\n--- NPS vs UPS Comparison Across Different Death Ages ---")
     print("(Including Pre-Retirement Death Benefits)")
     
     mortality_table = generate_mortality_comparison_table(
-        birth_year, 
-        birth_month,
         retirement_age,
-        inflation_rate,
         fitment_factor,
         pay_commission_interval,
-        nps_corpus,
-        withdrawal_percentage,
         annuity_rate,
         spouse_age_difference,
-        lumpsum_withdrawal_percentage,
-        is_vrs=is_vrs,
-        normal_retirement_age=normal_retirement_age
     )
     
     # Format table headers and data for display
@@ -1063,19 +1144,49 @@ def main():
         ]
         formatted_table.append(formatted_row)
     
-    # Display the table 
-    try:
-        if tabulate:
-            print(tabulate(formatted_table, headers=headers, tablefmt="grid"))
-        else:
-            raise ImportError
-    except ImportError:
-        # Fallback if tabulate is not available
-        print("|".join(headers))  # Print headers correctly
-        print("-" * 120)
-        for row in formatted_table:
-            print("|".join(str(col) for col in row))
-    
+    # Display the table in the terminal using tabulate
+    print("\n--- NPS vs UPS Comparison Table ---")
+    print(tabulate(formatted_table, headers=headers, tablefmt="grid"))
+
+    # Save the table as a CSV file
+    csv_output_file = "demo_run.csv"
+    generate_csv_file(headers, mortality_table, csv_output_file)
+    # Collect inputs for the Markdown file
+    inputs = {
+        "Birth Year": birth_year,
+        "Birth Month": birth_month,
+        "Year of Joining": year_of_joining,
+        "Month of Joining": month_of_joining,
+        "Seniority Year": seniority_year,
+        "Seniority Month": seniority_month,
+        "Normal Retirement Age": normal_retirement_age,
+        "Actual Retirement Age": retirement_age,
+        "Death Age": death_age,
+        "Fitment Factor": fitment_factor,
+        "Inflation Rate": inflation_rate,
+        "Equity Return Rate": equity_return,
+        "Corporate Bond Return Rate": corporate_bond_return,
+        "G-Sec Return Rate": gsec_return,
+        "Annuity Withdrawal Percentage": f"{withdrawal_percentage * 100}%",
+        "UPS Lump Sum Withdrawal Percentage": f"{withdrawal_percentage * 100}%",
+        "Annuity Rate": annuity_rate,
+        "Pay Commission Interval": pay_commission_interval,
+        "Life Cycle Fund": life_cycle_fund,
+        "Spouse Age Difference": spouse_age_difference
+    }
+
+    # Prepare salary progression for the Markdown file
+    salary_progression = []
+    for entry in displayed_entries:
+        salary_progression.append({
+            "year": entry["year"],
+            "month": date(2000, entry["month"], 1).strftime('%b'),
+            "pay_level": entry["pay_level"],
+            "basic_pay": entry["basic_pay"],
+            "monthly_salary": entry["monthly_salary"],
+            "nps_corpus": entry["nps_corpus"]
+        })
+
     # Create a summary of which system is better at different death ages
     print("\n--- Summary: Which System Is Better at Different Death Ages ---")
     
@@ -1083,7 +1194,7 @@ def main():
     if is_vrs:
         normal_retirement_year = retirement_year + (normal_retirement_age - retirement_age)
         print(f"Note: For VRS cases, UPS pension starts only from year {normal_retirement_year} (normal retirement age)")
-        print(f"      This delay is factored into all calculations\n")
+        print(f"This delay is factored into all calculations\n")
     
     better_system_changes = []
     prev_better = None
@@ -1119,6 +1230,10 @@ def main():
             print("")
     else:
         print("No data available for comparison")
+
+    # Save the table as a Markdown file
+    output_file = "demo_run.md"
+    generate_markdown_file(headers, formatted_table, salary_progression, inputs, better_system_changes, output_file)
 
 if __name__ == "__main__":
     main()
