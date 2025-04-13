@@ -317,13 +317,12 @@ def initialize_ups_values(
         normal_retirement_date = None
     
     # Initialize the table with year-by-year values after retirement
-    current_date = retirement_date
     current_pension = initial_pension
-    
+    dr_year = 0
     # Assume we'll track 50 years after retirement to cover most possible death ages
     for year_offset in range(51):  # 0 to 50 years after retirement
         year = retirement_date.year + year_offset
-        
+
         # Check for pay commission updates (April of pay commission years)
         is_pay_commission_year = False
         for pc_year in range(retirement_date.year, year + 1, pay_commission_interval):
@@ -334,10 +333,11 @@ def initialize_ups_values(
         # Apply pay commission updates
         if is_pay_commission_year and year > retirement_date.year:  # Don't apply in retirement year
             current_pension = current_pension * fitment_factor
+            dr_year = 0
         
         # Apply DR (assume DR changes every year)
-        dr_rate = 0.02  # 2% DR
-        adjusted_pension = current_pension * (1 + dr_rate)
+        dr_rate = 0.02  # 2% Dearness Relief Rate (DR) for based on NPS 2016 Rules average.
+        adjusted_pension = current_pension * (1 + dr_rate)**2*dr_year  # Adjust for semi-annual DR
         
         # For VRS case, pension starts only at normal retirement age
         monthly_pension_to_use = 0
@@ -345,7 +345,7 @@ def initialize_ups_values(
             monthly_pension_to_use = adjusted_pension
         else:
             monthly_pension_to_use = 0  # No pension before normal retirement age for VRS
-        
+        dr_year+=1
         # Add entry to the table
         ups_values_table.append({
             "year": year,
@@ -757,8 +757,7 @@ def main():
     seniority_year = int(input("Enter seniority year (default: 2022): ") or 2022)
     seniority_month = int(input("Enter seniority month (1-12, default: 1): ") or 1)
     
-    # Ask about normal retirement age (superannuation age)
-    normal_retirement_age = int(input("Enter normal retirement age (superannuation age) (default: 60): ") or 60)
+    normal_retirement_age = 60
     
     # Ask about actual retirement age (could be less for VRS)
     retirement_age_input = input(f"Enter actual retirement age (default: {normal_retirement_age}, less than {normal_retirement_age} for VRS): ")
