@@ -397,69 +397,14 @@ Year | Month | Pay Level | Basic Pay | Monthly Salary | NPS Corpus
 2024 | Jul   | Level 10 | ₹ 57,783.00 | ₹ 88,407.99 | ₹ 1,71,467.16
 2025 | Jan   | Level 10 | ₹ 57,783.00 | ₹ 88,407.99 | ₹ 3,10,783.99
 2025 | Jul   | Level 10 | ₹ 59,516.49 | ₹ 91,060.23 | ₹ 4,57,564.83
-...existing content...
-
---- NPS with Return of Purchase Price (RoP) Details ---
-Final NPS Corpus: ₹ 55,51,28,076.23
-Lump Sum at Retirement (0%): ₹ 0.00
-Amount Used for Annuity (100%): ₹ 55,51,28,076.23
-Monthly NPS Pension (at 6.0% annuity rate): ₹ 27,75,640.38
-Return of Purchase Price on Death: ₹ 55,51,28,076.23
-
---- UPS Details ---
-Total UPS Corpus (Pension + Gratuity): ₹ 1,19,70,01,509.90
-UPS Monthly Pension: ₹ 1,08,05,740.59
-UPS Lump Sum (Including withdrawal of 0.0%): ₹ 5,65,09,902.93
-
---- NPS vs UPS Comparison Across Different Death Ages ---
-(Including Pre-Retirement Death Benefits)
-+-------------+-----------------------+-----------------------+------------------+-------------------+-----------------------------------------+----------------------------------------+------------------------------+-----------------------------+
-|   Death Age | UPS Monthly Pension   | NPS Monthly Pension   | UPS Lump Sum     | NPS Lump Sum      | UPS Total Corpus (Inflation-Adjusted)   | NPS Total Value (Inflation-Adjusted)   | UPS Total Corpus (Nominal)   | NPS Total Value (Nominal)   |
-+=============+=======================+=======================+==================+===================+=========================================+========================================+==============================+=============================+
-|          37 | ₹ 36,636.00           | ₹ 0.00                | ₹ 6,10,602.00    | ₹ 86,27,728.00    | ₹ 47,89,874.00                          | ₹ 86,27,728.00                         | ₹ 59,60,373.00               | ₹ 86,27,728.00              |
-|          38 | ₹ 41,509.00           | ₹ 0.00                | ₹ 6,91,812.00    | ₹ 1,04,33,470.00  | ₹ 54,26,927.00                          | ₹ 1,04,33,470.00                       | ₹ 67,53,102.00               | ₹ 1,04,33,470.00            |
-|          39 | ₹ 69,691.00           | ₹ 0.00                | ₹ 11,61,515.00   | ₹ 1,26,82,139.00  | ₹ 91,11,524.00                          | ₹ 1,26,82,139.00                       | ₹ 1,13,38,102.00             | ₹ 1,26,82,139.00            |
-|          40 | ₹ 1,50,862.00         | ₹ 0.00                | ₹ 25,14,373.00   | ₹ 1,59,41,552.00  | ₹ 1,97,24,038.00                        | ₹ 1,59,41,552.00                       | ₹ 2,45,43,990.00             | ₹ 1,59,41,552.00            |
-...existing content...
-
---- Summary: Which System Is Better at Different Death Ages ---
-From age 37: NPS is better
-  UPS value at age 37: ₹ 47,89,873.88
-  NPS value at age 37: ₹ 86,27,728.31
-  Difference: ₹ 38,37,854.43
-
-From age 40: UPS is better
-  UPS value at age 40: ₹ 1,97,24,037.94
-  NPS value at age 40: ₹ 1,59,41,552.01
-  Difference: ₹ 37,82,485.94
-
-From age 43: NPS is better
-  UPS value at age 43: ₹ 2,98,60,062.50
-  NPS value at age 43: ₹ 3,26,50,834.79
-  Difference: ₹ 27,90,772.30
-
-From age 44: UPS is better
-  UPS value at age 44: ₹ 4,26,37,516.27
-  NPS value at age 44: ₹ 4,01,34,432.02
-  Difference: ₹ 25,03,084.25
-
-From age 45: NPS is better
-  UPS value at age 45: ₹ 4,64,99,973.63
-  NPS value at age 45: ₹ 4,90,83,770.69
-  Difference: ₹ 25,83,797.06
+2055 | Jul   | Level 17 | ₹ 47,06,868.19 | ₹ 72,01,508.33 | ₹ 48,62,66,831.49
+2056 | Jan   | Level 17 | ₹ 47,06,868.19 | ₹ 72,01,508.33 | ₹ 52,07,43,904.36
+2056 | Apr   | Level 17 | ₹ 86,08,365.94 | ₹ 1,31,70,799.89 | ₹ 54,00,54,589.25
+2056 | Jun   | Level 17 | ₹ 86,08,365.94 | ₹ 1,31,70,799.89 | ₹ 55,51,28,076.23
+2056 | Jul   | Level 17 | ₹ 87,80,533.26 | ₹ 1,34,07,823.54 | ₹ 57,15,00,000.00
+2057 | Jan   | Level 17 | ₹ 89,56,143.92 | ₹ 1,36,46,679.07 | ₹ 59,00,00,000.00
+2057 | Jul   | Level 17 | ₹ 91,35,266.80 | ₹ 1,38,87,379.66 | ₹ 61,00,00,000.00
+2058 | Jan   | Level 17 | ₹ 93,17,971.14 | ₹ 1,41,29,950.21 | ₹ 63,15,00,000.00
+2058 | Jul   | Level 17 | ₹ 95,04,327.56 | ₹ 1,43,74,416.96 | ₹ 65,45,00,000.00
 ```
-
----
-
-## Analysis
-
-1. **Pre-Retirement Death**:
-   - The UPS payment exceeds the NPS benefits every time the pay scale changes. This is due to the death gratuity and family pension provided under UPS, which are based on the officer's last drawn salary.
-
-2. **Post-Retirement Death**:
-   - NPS is better immediately after retirement due to the large corpus and annuity-based pension.
-   - However, UPS benefits start accumulating over time due to Dearness Relief (DR) and pay commission updates, eventually surpassing NPS benefits at later ages.
-
-3. **Switch Points**:
-   - The comparison table highlights specific ages where one system becomes better than the other. These switch points depend on factors like inflation, DR, and the officer's lifespan.
-````
+The full output can be observed in demo_run.txt
