@@ -27,31 +27,29 @@ The following table shows the pay scales used in the calculations:
 
 The script uses the following default values for calculations:
 
-| Parameter                          | Default Value       |
-|------------------------------------|---------------------|
-| **Joining Age**                    | 26 years           |
-| **Retirement Age**                 | 60 years           |
-| **Death Age**                      | 75 years           |
-| **Spouse Age Difference**          | 10 years           |
-| **Fitment Factor**                 | Calculated (1.8289 for 5% inflation and 20% COLA) |
-| **Annual Increment Rate**          | 3% (0.03)          |
-| **Market Return Rate**             | 8% (0.08)          |
-| **Inflation Rate**                 | 5% (0.05)          |
-| **Cost of Living Adjustment (COLA)**| 20% (0.2)          |
-| **Voluntary Retirement Age**       | Same as retirement |
-| **Extraordinary Leave (EOL)**      | 1 year             |
-| **Pay Commission Interval**        | 10 years           |
-| **Pay Commission Increase**        | 20% (0.2)          |
-| **Superannuation Age**             | 60 years           |
-| **Dearness Relief (DR)**           | 2% (0.02) annually |
-| **Minimum UPS Pension**            | ₹10,000 per month  |
-| **Employee Contribution Rate (NPS)**| 10% (0.1)         |
-| **Government Contribution Rate (NPS)**| 12% (0.12) pre 2019, 14% (0.14) onwards |
-| **Switch Date to UPS**             | April 2025         |
-| **Pension Fund NAV Growth Rate**   | 8% (0.08) annually |
-| **Life Cycle Fund**                | LC50 (Moderate)    |
-| **Annuity Rate (NPS)**             | 6% (0.06)          |
-| **Lump Sum Withdrawal Percentage** | 0%                 |
+| Parameter                          | Default Value       | Inputable | Hardcoded |
+|------------------------------------|---------------------|-----------|-----------|
+| **Joining Age**                    | 26 years           | ☑         | ☐         |
+| **Retirement Age (VRS included)**                 | 60 years           | ☑         | ☐         |
+| **Death Age**                      | 75 years           | ☑         | ☐         |
+| **Spouse Age Difference**          | 10 years           | ☑         | ☐         |
+| **Fitment Factor**                 | Calculated (1.8289 for 5% inflation and 20% COLA) | ☑ | ☐         |
+| **Market Return Rate**             | 8% (0.08)          | ☑         | ☐         |
+| **Inflation Rate**                 | 5% (0.05)          | ☑         | ☐         |
+| **Cost of Living Adjustment (COLA)**| 20% (0.2)          | ☑         | ☐         |
+| **Pay Commission Interval**        | 10 years           | ☑         | ☐         |
+| **Life Cycle Fund**                | LC50 (Moderate)    | ☑         | ☐         |
+| **Annuity Rate (NPS)**             | 6% (0.06)          | ☑         | ☐         |
+| **Lump Sum Withdrawal Percentage** | 0%                 | ☑         | ☐         |
+| **Annual Increment Rate**          | 3% (0.03)          | ☐         | ☑         |
+| **Voluntary Retirement Age**       | Same as retirement | ☐         | ☑         |
+| **Default Superannuation Age**             | 60 years           | ☐         | ☑         |
+| **Dearness Relief (DR)**           | 2% (0.02) semi-annually | ☐     | ☑         |
+| **Minimum UPS Pension**            | ₹10,000 per month  | ☐         | ☑         |
+| **Employee Contribution Rate (NPS)**| 10% (0.1)         | ☐         | ☑         |
+| **Government Contribution Rate (NPS)**| 12% (0.12) pre 2019, 14% (0.14) onwards | ☐ | ☑         |
+| **Switch Date to UPS**             | April 2025         | ☐         | ☑         |
+| **Pension Fund NAV Growth Rate**   | 8% (0.08) annually | ☐         | ☑         |
 
 ---
 
@@ -125,10 +123,10 @@ if IC > BC:
 The UPS corpus is calculated as the present value of all future pension payments, adjusted for inflation and Dearness Relief (DR).
 
 1. **Annual Pension with DR**:
-   ```
-   adjusted_pension = monthly_pension * (1 + dr_rate)
-   ```
-   - **`dr_rate`**: Dearness Relief rate (default: 3% or 0.03).
+   `````
+   adjusted_pension = monthly_pension * (1 + dr_rate) ** (2 * years_since_retirement)
+   `````
+   - **`dr_rate`**: Dearness Relief rate (default: 2% or 0.02, applied semi-annually).
 
 2. **Present Value of Pension (Inflation-Adjusted)**:
    ```
@@ -287,7 +285,7 @@ The total NPS value includes both nominal and inflation-adjusted values:
    - The **individual corpus** represents the actual NPS corpus accumulated by the officer.
 
 5. **Dearness Relief (DR)**:
-   - A 2% annual Dearness Relief (DR) is applied to UPS pensions to adjust for inflation.
+   - A 2% semi-annual Dearness Relief (DR) is applied to UPS pensions to adjust for inflation.
 
 6. **Minimum Pension**:
    - The minimum assured payout for UPS is ₹10,000 per month for officers with at least 10 years of service.
@@ -303,10 +301,7 @@ The total NPS value includes both nominal and inflation-adjusted values:
 2. **Spouse Benefits**:
    - If the officer passes away, the spouse receives **60% of the officer's pension** until their death. The user can specify the age difference between the officer's death and the spouse's death.
 
-3. **Extraordinary Leave (EOL)**:
-   - If the officer takes a year of leave without pay, the salary progression and contributions are skipped for that year.
-
-4. **Pay Commission Adjustments**:
+3. **Pay Commission Adjustments**:
    - Pay commissions are applied at regular intervals (default: 10 years) and adjust the basic pay using the fitment factor.
 
 ---
@@ -356,7 +351,6 @@ The script will prompt you for the following inputs. If no input is provided, th
 8. **Cost of Living Adjustment**: Default 20% (0.2).
 9. **Market Return Rate**: The expected annual return rate for NPS investments (default: 8% or 0.08).
 10. **Pay Commission Interval**: The interval (in years) at which pay commissions are applied (default: 10 years).
-11. **Extraordinary Leave (EOL)**: The number of years the officer takes leave without pay (default: 1).
 
 ---
 
@@ -468,3 +462,4 @@ From age 45: NPS is better
 
 3. **Switch Points**:
    - The comparison table highlights specific ages where one system becomes better than the other. These switch points depend on factors like inflation, DR, and the officer's lifespan.
+````
