@@ -105,7 +105,7 @@
 
 ## NPS vs UPS Comparison Across Different Death Ages
 
-| Death Age | UPS Monthly Pension | NPS Monthly Pension | UPS Lump Sum | NPS Lump Sum | UPS Total Corpus (Inflation-Adjusted) | NPS Total Value (Inflation-Adjusted) | UPS Total Corpus (Nominal) | NPS Total Value (Nominal) |
+| Death Age | UPS Monthly Pension | NPS Monthly Pension | UPS Lump Sum | NPS Lump Sum (excluding RoP) | UPS Total Corpus (Inflation-Adjusted) | NPS Total Value (Inflation-Adjusted) | UPS Total Corpus (Nominal) | NPS Total Value (Nominal) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 37 | ₹ 36,636.00 | ₹ 0.00 | ₹ 7,45,630.00 | ₹ 86,27,728.00 | ₹ 49,24,902.00 | ₹ 86,27,728.00 | ₹ 60,95,401.00 | ₹ 86,27,728.00 |
 | 38 | ₹ 41,509.00 | ₹ 0.00 | ₹ 8,38,047.00 | ₹ 1,04,33,470.00 | ₹ 55,73,163.00 | ₹ 1,04,33,470.00 | ₹ 68,99,338.00 | ₹ 1,04,33,470.00 |
@@ -217,3 +217,4 @@
 
 
 ---
+
