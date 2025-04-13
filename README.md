@@ -1,7 +1,7 @@
 # NPS vs UPS Corpus Comparison for IAS Officers
 
 ## Overview
-This Python script calculates and compares the corpus of an IAS officer under the **Unfunded Pension Scheme (UPS)** and the **National Pension Scheme (NPS)**. It considers various factors such as career progression, pay commission rises, fitment factors, inflation, voluntary retirement (VRS), extraordinary leave (EOL) with no pay, **Dearness Relief (DR)**, and scenarios where the officer's **age of death occurs before retirement**. Additionally, it includes **spouse benefits**, where the legally wedded spouse receives **60% of the officer's pension** until their death.
+This program compares the benefits of the National Pension System (NPS) and the Unfunded Pension Scheme (UPS) for IAS officers. It calculates monthly salary progression, NPS corpus, and UPS corpus, and provides a detailed comparison across different death ages.
 
 ---
 
@@ -97,15 +97,20 @@ initial_pension = (P / 2) * min(IC / BC, 1) * min(service_months / 300, 1)
   - After the switch, both the employee and the government contribute **10% of the monthly salary** to the individual corpus, and the same amount is added to the benchmark corpus.
   - Both the individual corpus and benchmark corpus grow at the Pension Fund NAV rate (default: 8% annually, user-configurable).
 
+#### Assumptions
+1. **Benchmark Corpus**:
+   - The benchmark corpus (BC) is assumed to grow based on monthly contributions (`monthly_salary * 0.2`) and the Pension Fund NAV rate. It is not directly linked to the individual corpus (IC) but grows in parallel after the switch.
+   - No premature withdrawals or additional investments are assumed for the individual corpus.
+2. **Switch to UPS**:
+   - The default switch date is **April 2025**, but the user can specify a different date.
+   - Contributions to the individual corpus and benchmark corpus after the switch are based on the salary progression and grow at the Pension Fund NAV rate.
+
 #### UPS Lump Sum:
 ```
 lump_sum = (1 / 10) * avg_last_12_months_salary * (qualifying_service_months / 6)
 if IC > BC:
     lump_sum += (IC - BC)
 ```
-- **`qualifying_service_months`**: The total number of service months.
-- **Condition**: Lump sum is only provided if the officer has completed at least 25 years of service.
-- **Adjustment**: If the individual corpus (`IC`) exceeds the benchmark corpus (`BC`), the positive difference `(IC - BC)` is added to the lump sum.
 
 #### UPS Corpus:
 The UPS corpus is calculated as the present value of all future pension payments, adjusted for inflation and Dearness Relief (DR).
@@ -116,7 +121,7 @@ The UPS corpus is calculated as the present value of all future pension payments
    ```
    - **`dr_rate`**: Dearness Relief rate (default: 3% or 0.03).
 
-2. **Present Value of Pension**:
+2. **Present Value of Pension (Inflation-Adjusted)**:
    ```
    present_value = annual_pension / ((1 + inflation_rate) ** years_since_retirement)
    ```
@@ -124,11 +129,17 @@ The UPS corpus is calculated as the present value of all future pension payments
    - **`inflation_rate`**: The expected inflation rate (default: 5% or 0.05).
    - **`years_since_retirement`**: The number of years since the officer retired.
 
-3. **Total UPS Corpus**:
+3. **Nominal UPS Corpus**:
+   ```
+   nominal_corpus = sum(annual_pension for each year) + lump_sum
+   ```
+   - The nominal UPS corpus is the sum of all annual pension payments without adjusting for inflation.
+
+4. **Total UPS Corpus**:
    ```
    ups_corpus = sum(present_value for each year) + lump_sum
    ```
-   - The total UPS corpus includes the present value of all pension payments and the lump sum (if applicable).
+   - The total UPS corpus includes the inflation-adjusted present value of all pension payments and the lump sum (if applicable).
 
 ---
 
@@ -224,19 +235,53 @@ This function calculates the monthly pension, lump sum, and Return of Purchase P
    - The annuity corpus is returned to the nominee upon the death of the pensioner.
 
 #### Assumptions and Default Values:
-- **Annuity Percentage**: 40% of the NPS corpus is used for annuity.
 - **Annuity Rate**: 6% annual return on the annuity corpus.
 - **Lump Sum**: 60% of the NPS corpus is available as a lump sum at retirement.
 - **RoP**: The full annuity corpus is returned to the nominee upon death.
 
+#### Total NPS Value:
+The total NPS value includes both nominal and inflation-adjusted values:
+
+1. **Nominal NPS Value**:
+   ```
+   nominal_nps_value = lump_sum + (monthly_pension * 12 * years_receiving_pension) + rop_value
+   ```
+   - **`lump_sum`**: The lump sum available at retirement.
+   - **`monthly_pension`**: The monthly pension amount.
+   - **`years_receiving_pension`**: The number of years the pension is received.
+   - **`rop_value`**: The Return of Purchase Price.
+
+2. **Inflation-Adjusted NPS Value**:
+   ```
+   inflation_adjusted_nps_value = lump_sum + (monthly_pension * 12 * years_receiving_pension) * ((1 + inflation_rate) * (1 - (1 / (1 + inflation_rate) ** years_receiving_pension)) / inflation_rate) + rop_value / ((1 + inflation_rate) ** years_receiving_pension)
+   ```
+   - Adjusts the pension payments and RoP for inflation over the years.
 ---
 
 ## Assumptions
-1. **Benchmark Corpus**:
-   - The benchmark corpus (BC) is assumed to be the same as the individual corpus (IC), given that no extra investment is made in the pension corpus and no premature withdrawals are made.
-2. **Switch to UPS**:
-   - The default switch date is **April 2025**, but the user can specify a different date.
-   - Contributions to the individual corpus after the switch are based on the salary progression.
+1. **Death Month Assumption**:
+   - The month of death is assumed to be the same as the birth month:
+     ```python
+     death_month = birth_month
+     ```
+
+2. **Lump Sum Withdrawal Assumption**:
+   - The lump sum withdrawal percentage in UPS is assumed to be the same as that in NPS.
+
+3. **VRS Eligibility**:
+   - Voluntary Retirement Scheme (VRS) can only occur if:
+     - The officer has attained the age of 50, or
+     - The officer has completed 30 years of qualifying service.
+
+4. **Benchmark Corpus and Individual Corpus**:
+   - The **benchmark corpus** represents the expected corpus based on contributions and growth at the Pension Fund NAV rate.
+   - The **individual corpus** represents the actual NPS corpus accumulated by the officer.
+
+5. **Dearness Relief (DR)**:
+   - A 2% annual Dearness Relief (DR) is applied to UPS pensions to adjust for inflation.
+
+6. **Minimum Pension**:
+   - The minimum assured payout for UPS is ₹10,000 per month for officers with at least 10 years of service.
 
 ---
 
@@ -330,6 +375,16 @@ Year: 2022, Age: 26, Monthly Salary: ₹85,833.00
 Year: 2023, Age: 27, Monthly Salary: ₹88,407.99
 ...
 
-Final UPS Corpus (Including Dearness Relief and Spouse Benefits): ₹353,325,195.97
+Final UPS Corpus (Nominal): ₹500,000,000
+Final UPS Corpus (Inflation-Adjusted): ₹353,325,195.97
 
-Final NPS Corpus (Including Returns): ₹238,907,641.76
+Final NPS Corpus (Nominal): ₹300,000,000
+Final NPS Corpus (Inflation-Adjusted): ₹238,907,641.76
+```
+
+--- 
+
+## Notes
+- Ensure the `tabulate` library is installed for better table formatting.
+- The program assumes a fixed inflation rate and DR rate for simplicity.
+- For VRS cases, pension payments start only at the normal retirement age.
