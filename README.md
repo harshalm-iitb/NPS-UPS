@@ -91,41 +91,44 @@ initial_pension = (P / 2) * min(IC / BC, 1) * min(service_months / 300, 1)
 - **`P`**: The average of the officer's last 12 months' salary before the switch.
 - **`IC`**: The individual corpus, which is the NPS corpus accumulated until the switch date. After the switch, both the employee and the government contribute 10% of the monthly salary (from salary progression) to the individual corpus.
 - **`BC`**: The benchmark corpus:
-  - Starts from 0 and grows based on monthly contributions (`monthly_salary * 0.2`) and the Pension Fund NAV rate (default: 8% annually, user-configurable).
+  - Starts from 0 and grows based on monthly contributions (`monthly_salary * 0.2`) and the Pension Fund NAV rate (default: 8% annually).
   - Before the switch: Contributions are added to the benchmark corpus, and it grows at the NAV rate.
   - After the switch: Any addition to the individual corpus is matched in the benchmark corpus.
 - **`service_months`**: The total number of service months, capped at 300 months (25 years).
 
-#### Switch to UPS:
-- The switch from NPS to UPS is assumed to occur in **April 2025** by default. The user can specify a different switch date.
-- At the moment of the switch:
-  - The **individual corpus (IC)** is set to the NPS corpus accumulated until the switch date.
-  - The **benchmark corpus (BC)** starts from 0 and grows based on contributions and the Pension Fund NAV rate.
-  - After the switch, both the employee and the government contribute **10% of the monthly salary** to the individual corpus, and the same amount is added to the benchmark corpus.
-  - Both the individual corpus and benchmark corpus grow at the Pension Fund NAV rate (default: 8% annually, user-configurable).
+#### Lumpsum Withdrawal and Adjusted Pension:
+```
+lumpsum_withdrawal = min(BC, IC) * withdrawal_percentage
+adjusted_pension = initial_pension * (1 - withdrawal_percentage)
+```
+- **`withdrawal_percentage`**: The percentage of the corpus withdrawn as a lump sum (capped at 60% or 0.6).
+- **`BC`**: Benchmark corpus.
+- **`IC`**: Individual corpus.
+- **`initial_pension`**: The pension calculated before withdrawal adjustments.
 
-#### Assumptions
-1. **Benchmark Corpus**:
-   - The benchmark corpus (BC) is assumed to grow based on monthly contributions (`monthly_salary * 0.2`) and the Pension Fund NAV rate. It is not directly linked to the individual corpus (IC) but grows in parallel after the switch.
-   - No premature withdrawals or additional investments are assumed for the individual corpus.
-2. **Switch to UPS**:
-   - The default switch date is **April 2025**, but the user can specify a different date.
-   - Contributions to the individual corpus and benchmark corpus after the switch are based on the salary progression and grow at the Pension Fund NAV rate.
+#### Gratuity:
+```
+gratuity = (1 / 10) * avg_last_12_months_salary * (service_months / 6)
+```
+- **`avg_last_12_months_salary`**: The average of the officer's last 12 months' salary.
+- **`service_months`**: Total service months (minimum 60 months required for gratuity).
 
 #### UPS Lump Sum:
 ```
-lump_sum = (1 / 10) * avg_last_12_months_salary * (qualifying_service_months / 6)
-if IC > BC:
-    lump_sum += (IC - BC)
+lump_sum = gratuity + excess_corpus + lumpsum_withdrawal
 ```
+- **`excess_corpus`**: The positive difference between the individual corpus and the benchmark corpus:
+  ```
+  excess_corpus = max(0, IC - BC)
+  ```
 
 #### UPS Corpus:
 The UPS corpus is calculated as the present value of all future pension payments, adjusted for inflation and Dearness Relief (DR).
 
 1. **Annual Pension with DR**:
-   `````
+   ```
    adjusted_pension = monthly_pension * (1 + dr_rate) ** (2 * years_since_retirement)
-   `````
+   ```
    - **`dr_rate`**: Dearness Relief rate (default: 2% or 0.02, applied semi-annually).
 
 2. **Present Value of Pension (Inflation-Adjusted)**:
@@ -140,13 +143,11 @@ The UPS corpus is calculated as the present value of all future pension payments
    ```
    nominal_corpus = sum(annual_pension for each year) + lump_sum
    ```
-   - The nominal UPS corpus is the sum of all annual pension payments without adjusting for inflation.
 
 4. **Total UPS Corpus**:
    ```
    ups_corpus = sum(present_value for each year) + lump_sum
    ```
-   - The total UPS corpus includes the inflation-adjusted present value of all pension payments and the lump sum (if applicable).
 
 ---
 
@@ -207,9 +208,6 @@ The script allows the user to choose between three life cycle funds, which deter
 ---
 
 ### 5. **NPS Pension with Return of Purchase Price (RoP)**
-#### Function: `calculate_nps_pension_with_rop`
-This function calculates the monthly pension, lump sum, and Return of Purchase Price (RoP) based on the final NPS corpus at retirement.
-
 #### Formulae:
 1. **Annuity Corpus**:
    ```
@@ -222,13 +220,12 @@ This function calculates the monthly pension, lump sum, and Return of Purchase P
    ```
    lump_sum = nps_corpus * (1 - annuity_percentage)
    ```
-   - The remaining corpus (default: 60%) is available as a lump sum at retirement.
 
 3. **Annual Pension**:
    ```
    annual_pension = annuity_corpus * annuity_rate
    ```
-   - **`annuity_rate`**: The annual annuity rate for the Return of Purchase Price plan (default: 6%).
+- **`annuity_rate`**: The annual annuity rate for the Return of Purchase Price plan (default: 6%).
 
 4. **Monthly Pension**:
    ```
@@ -239,30 +236,18 @@ This function calculates the monthly pension, lump sum, and Return of Purchase P
    ```
    rop_value = annuity_corpus
    ```
-   - The annuity corpus is returned to the nominee upon the death of the pensioner.
-
-#### Assumptions and Default Values:
-- **Annuity Rate**: 6% annual return on the annuity corpus.
-- **Lump Sum**: 60% of the NPS corpus is available as a lump sum at retirement.
-- **RoP**: The full annuity corpus is returned to the nominee upon death.
 
 #### Total NPS Value:
-The total NPS value includes both nominal and inflation-adjusted values:
-
 1. **Nominal NPS Value**:
    ```
    nominal_nps_value = lump_sum + (monthly_pension * 12 * years_receiving_pension) + rop_value
    ```
-   - **`lump_sum`**: The lump sum available at retirement.
-   - **`monthly_pension`**: The monthly pension amount.
-   - **`years_receiving_pension`**: The number of years the pension is received.
-   - **`rop_value`**: The Return of Purchase Price.
 
 2. **Inflation-Adjusted NPS Value**:
    ```
    inflation_adjusted_nps_value = lump_sum + (monthly_pension * 12 * years_receiving_pension) * ((1 + inflation_rate) * (1 - (1 / (1 + inflation_rate) ** years_receiving_pension)) / inflation_rate) + rop_value / ((1 + inflation_rate) ** years_receiving_pension)
    ```
-   - Adjusts the pension payments and RoP for inflation over the years.
+
 ---
 
 ## Assumptions
