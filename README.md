@@ -353,38 +353,109 @@ The script will prompt you for the following inputs. If no input is provided, th
 
 ## Demo Run
 
-```plaintext
-Corpus Comparison (UPS vs NPS)
+### Input
+```
+Monthly-Based Corpus Comparison (UPS vs NPS with RoP Annuity)
+-------------------------------------------------------------
 Enter birth year of the officer (default: 1996): 
-Enter year of joining the service (default: 2022): 
-Enter retirement age (default: 60): 
-Enter death age (default: 75):
-Enter the age difference between spouse's death and employee's death (negative values allowed, default: 0): 
+Enter birth month (1-12, default: 6): 
+Enter year of joining the service (default: 2023): 
+Enter month of joining (1-12, default: 12): 
+Enter seniority year (default: 2022): 
+Enter seniority month (1-12, default: 1): 
+Enter normal retirement age (superannuation age) (default: 60): 
+Enter actual retirement age (default: 60, less than 60 for VRS): 
+Enter death age (default: 75): 
+Enter fitment factor or press Enter to calculate using Ackroyd's formula (default inflation: 5%, COLA: 20%): 
+Calculated Fitment Factor: 1.828894626777442
+Enter annual equity return rate (default: 0.12 for 12%): 
+Enter annual corporate bond return rate (default: 0.08 for 8%): 
+Enter annual G-Sec return rate (default: 0.06 for 6%): 
+Enter desired annuity and lumpsum withdrawal percentage (0-60%, default: 0%): 
+Annuity percentage set to: 0.0%
+UPS lumpsum withdrawal percentage set to: 0.0%
+Enter annual annuity rate for Return of Purchase Price plan (default: 0.06 for 6%): 
+Enter pay commission interval in years (default: 10): 
 Choose a Life Cycle Fund for NPS:
 1. Aggressive Life Cycle Fund (LC75) - 75% equity up to 35 years, reduces to 15% by 55 years.
 2. Moderate Life Cycle Fund (LC50) - 50% equity up to 35 years, reduces to 10% by 55 years.
 3. Conservative Life Cycle Fund (LC25) - 25% equity up to 35 years, reduces to 5% by 55 years.
 Enter your choice (1/2/3, default: 2): 
-Enter the inflation rate (default: 0.05 for 5%): 
-Enter the cost of living adjustment (default: 0.2 for 20%): 
-Enter market return rate (default: 0.08 for 8%):
-Enter pay commission interval in years (default: 10): 
-
---- Salary Progression ---
-Year: 2022, Age: 26, Monthly Salary: ₹85,833.00
-Year: 2023, Age: 27, Monthly Salary: ₹88,407.99
-...
-
-Final UPS Corpus (Nominal): ₹500,000,000
-Final UPS Corpus (Inflation-Adjusted): ₹353,325,195.97
-
-Final NPS Corpus (Nominal): ₹300,000,000
-Final NPS Corpus (Inflation-Adjusted): ₹238,907,641.76
+Enter the age difference between spouse's death and employee's death (negative values allowed, default: 10): 
 ```
 
---- 
+### Output
+```
+--- Salary and NPS Corpus Progression (Key Months) ---
+Year | Month | Pay Level | Basic Pay | Monthly Salary | NPS Corpus
+-----|-------|-----------|-----------|---------------|----------
+2023 | Dec   | Level 10 | ₹ 56,100.00 | ₹ 85,833.00 | ₹ 20,764.72
+2024 | Jan   | Level 10 | ₹ 56,100.00 | ₹ 85,833.00 | ₹ 41,695.56
+2024 | Jul   | Level 10 | ₹ 57,783.00 | ₹ 88,407.99 | ₹ 1,71,467.16
+2025 | Jan   | Level 10 | ₹ 57,783.00 | ₹ 88,407.99 | ₹ 3,10,783.99
+2025 | Jul   | Level 10 | ₹ 59,516.49 | ₹ 91,060.23 | ₹ 4,57,564.83
+...existing content...
 
-## Notes
-- Ensure the `tabulate` library is installed for better table formatting.
-- The program assumes a fixed inflation rate and DR rate for simplicity.
-- For VRS cases, pension payments start only at the normal retirement age.
+--- NPS with Return of Purchase Price (RoP) Details ---
+Final NPS Corpus: ₹ 55,51,28,076.23
+Lump Sum at Retirement (0%): ₹ 0.00
+Amount Used for Annuity (100%): ₹ 55,51,28,076.23
+Monthly NPS Pension (at 6.0% annuity rate): ₹ 27,75,640.38
+Return of Purchase Price on Death: ₹ 55,51,28,076.23
+
+--- UPS Details ---
+Total UPS Corpus (Pension + Gratuity): ₹ 1,19,70,01,509.90
+UPS Monthly Pension: ₹ 1,08,05,740.59
+UPS Lump Sum (Including withdrawal of 0.0%): ₹ 5,65,09,902.93
+
+--- NPS vs UPS Comparison Across Different Death Ages ---
+(Including Pre-Retirement Death Benefits)
++-------------+-----------------------+-----------------------+------------------+-------------------+-----------------------------------------+----------------------------------------+------------------------------+-----------------------------+
+|   Death Age | UPS Monthly Pension   | NPS Monthly Pension   | UPS Lump Sum     | NPS Lump Sum      | UPS Total Corpus (Inflation-Adjusted)   | NPS Total Value (Inflation-Adjusted)   | UPS Total Corpus (Nominal)   | NPS Total Value (Nominal)   |
++=============+=======================+=======================+==================+===================+=========================================+========================================+==============================+=============================+
+|          37 | ₹ 36,636.00           | ₹ 0.00                | ₹ 6,10,602.00    | ₹ 86,27,728.00    | ₹ 47,89,874.00                          | ₹ 86,27,728.00                         | ₹ 59,60,373.00               | ₹ 86,27,728.00              |
+|          38 | ₹ 41,509.00           | ₹ 0.00                | ₹ 6,91,812.00    | ₹ 1,04,33,470.00  | ₹ 54,26,927.00                          | ₹ 1,04,33,470.00                       | ₹ 67,53,102.00               | ₹ 1,04,33,470.00            |
+|          39 | ₹ 69,691.00           | ₹ 0.00                | ₹ 11,61,515.00   | ₹ 1,26,82,139.00  | ₹ 91,11,524.00                          | ₹ 1,26,82,139.00                       | ₹ 1,13,38,102.00             | ₹ 1,26,82,139.00            |
+|          40 | ₹ 1,50,862.00         | ₹ 0.00                | ₹ 25,14,373.00   | ₹ 1,59,41,552.00  | ₹ 1,97,24,038.00                        | ₹ 1,59,41,552.00                       | ₹ 2,45,43,990.00             | ₹ 1,59,41,552.00            |
+...existing content...
+
+--- Summary: Which System Is Better at Different Death Ages ---
+From age 37: NPS is better
+  UPS value at age 37: ₹ 47,89,873.88
+  NPS value at age 37: ₹ 86,27,728.31
+  Difference: ₹ 38,37,854.43
+
+From age 40: UPS is better
+  UPS value at age 40: ₹ 1,97,24,037.94
+  NPS value at age 40: ₹ 1,59,41,552.01
+  Difference: ₹ 37,82,485.94
+
+From age 43: NPS is better
+  UPS value at age 43: ₹ 2,98,60,062.50
+  NPS value at age 43: ₹ 3,26,50,834.79
+  Difference: ₹ 27,90,772.30
+
+From age 44: UPS is better
+  UPS value at age 44: ₹ 4,26,37,516.27
+  NPS value at age 44: ₹ 4,01,34,432.02
+  Difference: ₹ 25,03,084.25
+
+From age 45: NPS is better
+  UPS value at age 45: ₹ 4,64,99,973.63
+  NPS value at age 45: ₹ 4,90,83,770.69
+  Difference: ₹ 25,83,797.06
+```
+
+---
+
+## Analysis
+
+1. **Pre-Retirement Death**:
+   - The UPS payment exceeds the NPS benefits every time the pay scale changes. This is due to the death gratuity and family pension provided under UPS, which are based on the officer's last drawn salary.
+
+2. **Post-Retirement Death**:
+   - NPS is better immediately after retirement due to the large corpus and annuity-based pension.
+   - However, UPS benefits start accumulating over time due to Dearness Relief (DR) and pay commission updates, eventually surpassing NPS benefits at later ages.
+
+3. **Switch Points**:
+   - The comparison table highlights specific ages where one system becomes better than the other. These switch points depend on factors like inflation, DR, and the officer's lifespan.
