@@ -27,22 +27,31 @@ The following table shows the pay scales used in the calculations:
 
 The script uses the following default values for calculations:
 
-| Parameter                     | Default Value       |
-|-------------------------------|---------------------|
-| **Joining Age**               | 26 years           |
-| **Retirement Age**            | 60 years           |
-| **Death Age**                 | 75 years           |
-| **Spouse Age Difference**     | 0 years            |
-| **Fitment Factor**            | 1.82               |
-| **Annual Increment Rate**     | 3% (0.03)          |
-| **Market Return Rate**        | 8% (0.08)          |
-| **Inflation Rate**            | 5% (0.05)          |
-| **Cost of Living Adjustment** | 20% (0.2)          |
-| **Voluntary Retirement Age**  | Same as retirement |
-| **Extraordinary Leave (EOL)** | 1 year             |
-| **Pay Commission Interval**   | 10 years           |
-| **Pay Commission Increase**   | 20% (0.2)          |
-| **Superannuation Age**        | 60 years           |
+| Parameter                          | Default Value       |
+|------------------------------------|---------------------|
+| **Joining Age**                    | 26 years           |
+| **Retirement Age**                 | 60 years           |
+| **Death Age**                      | 75 years           |
+| **Spouse Age Difference**          | 10 years           |
+| **Fitment Factor**                 | Calculated (1.8289 for 5% inflation and 20% COLA) |
+| **Annual Increment Rate**          | 3% (0.03)          |
+| **Market Return Rate**             | 8% (0.08)          |
+| **Inflation Rate**                 | 5% (0.05)          |
+| **Cost of Living Adjustment (COLA)**| 20% (0.2)          |
+| **Voluntary Retirement Age**       | Same as retirement |
+| **Extraordinary Leave (EOL)**      | 1 year             |
+| **Pay Commission Interval**        | 10 years           |
+| **Pay Commission Increase**        | 20% (0.2)          |
+| **Superannuation Age**             | 60 years           |
+| **Dearness Relief (DR)**           | 2% (0.02) annually |
+| **Minimum UPS Pension**            | ₹10,000 per month  |
+| **Employee Contribution Rate (NPS)**| 10% (0.1)         |
+| **Government Contribution Rate (NPS)**| 12% (0.12) pre 2019, 14% (0.14) onwards |
+| **Switch Date to UPS**             | April 2025         |
+| **Pension Fund NAV Growth Rate**   | 8% (0.08) annually |
+| **Life Cycle Fund**                | LC50 (Moderate)    |
+| **Annuity Rate (NPS)**             | 6% (0.06)          |
+| **Lump Sum Withdrawal Percentage** | 0%                 |
 
 ---
 
